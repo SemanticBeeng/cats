@@ -7,7 +7,7 @@ scaladoc: "#cats.data.Kleisli"
 ---
 # Kleisli
 Kleisli enables composition of functions that return a monadic value, for instance an `Option[Int]` 
-or a `Xor[String, List[Double]]`, without having functions take an `Option` or `Xor` as a parameter, 
+or a `Either[String, List[Double]]`, without having functions take an `Option` or `Either` as a parameter, 
 which can be strange and unwieldy.
 
 We may also have several functions which depend on some environment and want a nice way to compose these functions
@@ -126,7 +126,6 @@ An example of a `Monad` instance for `Kleisli` is shown below.
 
 ```tut:silent
 import cats.implicits._
-import cats.data.Xor
 
 // We can define a FlatMap instance for Kleisli if the F[_] we chose has a FlatMap instance
 // Note the input type and F are fixed, with the output type left free
@@ -138,7 +137,7 @@ implicit def kleisliFlatMap[F[_], Z](implicit F: FlatMap[F]): FlatMap[Kleisli[F,
     def map[A, B](fa: Kleisli[F, Z, A])(f: A => B): Kleisli[F, Z, B] =
       Kleisli(z => fa.run(z).map(f))
 
-    def tailRecM[A, B](a: A)(f: A => Kleisli[F, Z, A Xor B]) =
+    def tailRecM[A, B](a: A)(f: A => Kleisli[F, Z, Either[A, B]]) =
       Kleisli[F, Z, B]({ z => FlatMap[F].tailRecM(a) { f(_).run(z) } })
   }
 ```
@@ -218,7 +217,7 @@ to build larger ones. After all, our programs are just functions.
 
 Let's look at some example modules, where each module has it's own configuration that is validated by a function.
 If the configuration is good, we return a `Some` of the module, otherwise a `None`. This example uses `Option` for
-simplicity - if you want to provide error messages or other failure context, consider using `Xor` instead.
+simplicity - if you want to provide error messages or other failure context, consider using `Either` instead.
 
 ```tut:silent
 case class DbConfig(url: String, user: String, pass: String)

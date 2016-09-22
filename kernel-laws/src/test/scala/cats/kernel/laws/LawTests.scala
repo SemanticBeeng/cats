@@ -8,10 +8,12 @@ import cats.kernel.instances.all._
 
 import org.typelevel.discipline.{ Laws }
 import org.typelevel.discipline.scalatest.Discipline
-import org.scalacheck.{ Arbitrary, Gen }
+import org.scalacheck.{ Arbitrary, Cogen, Gen }
 import Arbitrary.arbitrary
 import org.scalatest.FunSuite
+
 import scala.util.Random
+import scala.collection.immutable.BitSet
 
 class LawTests extends FunSuite with Discipline {
 
@@ -22,10 +24,28 @@ class LawTests extends FunSuite with Discipline {
   implicit override val generatorDrivenConfig: PropertyCheckConfiguration =
     PropertyCheckConfig(maxSize = PropMaxSize, minSuccessful = PropMinSuccessful)
 
-  implicit def orderLaws[A: Eq: Arbitrary] = OrderLaws[A]
-  implicit def groupLaws[A: Eq: Arbitrary] = GroupLaws[A]
+  implicit def orderLaws[A: Cogen: Eq: Arbitrary]: OrderLaws[A] = OrderLaws[A]
+  implicit def groupLaws[A: Cogen: Eq: Arbitrary]: GroupLaws[A] = GroupLaws[A]
 
-  laws[OrderLaws, Map[String, HasEq[Int]]].check(_.eqv)
+  implicit val arbitraryBitSet: Arbitrary[BitSet] =
+    Arbitrary(arbitrary[List[Short]].map(ns => BitSet(ns.map(_ & 0xffff): _*)))
+
+  // this instance is not available in scalacheck 1.13.2.
+  // remove this once a newer version is available.
+  implicit val cogenBigInt: Cogen[BigInt] =
+    Cogen[Long].contramap(_.toLong)
+
+  // this instance is not available in scalacheck 1.13.2.
+  // remove this once a newer version is available.
+  implicit val cogenBigDecimal: Cogen[BigDecimal] =
+    Cogen[Double].contramap(_.toDouble)
+
+  {
+    // needed for Cogen[Map[...]]
+    implicit val ohe: Ordering[HasEq[Int]] = Ordering[Int].on(_.a)
+    laws[OrderLaws, Map[String, HasEq[Int]]].check(_.eqv)
+  }
+
   laws[OrderLaws, List[HasEq[Int]]].check(_.eqv)
   laws[OrderLaws, Option[HasEq[Int]]].check(_.eqv)
   laws[OrderLaws, Vector[HasEq[Int]]].check(_.eqv)
@@ -49,6 +69,7 @@ class LawTests extends FunSuite with Discipline {
   laws[OrderLaws, Char].check(_.order)
   laws[OrderLaws, Int].check(_.order)
   laws[OrderLaws, Long].check(_.order)
+  laws[OrderLaws, BitSet].check(_.partialOrder)
   laws[OrderLaws, BigInt].check(_.order)
   laws[OrderLaws, List[Int]].check(_.order)
   laws[OrderLaws, Option[String]].check(_.order)
@@ -68,6 +89,9 @@ class LawTests extends FunSuite with Discipline {
   laws[GroupLaws, List[String]].check(_.monoid)
   laws[GroupLaws, Map[String, Int]].check(_.monoid)
 
+  laws[GroupLaws, BitSet].check(_.boundedSemilattice)
+  laws[GroupLaws, Set[Int]].check(_.boundedSemilattice)
+
   laws[GroupLaws, Unit].check(_.commutativeGroup)
   laws[GroupLaws, Byte].check(_.commutativeGroup)
   laws[GroupLaws, Short].check(_.commutativeGroup)
@@ -76,6 +100,14 @@ class LawTests extends FunSuite with Discipline {
   //laws[GroupLaws, Float].check(_.commutativeGroup) // approximately associative
   //laws[GroupLaws, Double].check(_.commutativeGroup) // approximately associative
   laws[GroupLaws, BigInt].check(_.commutativeGroup)
+
+  {
+    // default Arbitrary[BigDecimal] is a bit too intense :/
+    implicit val arbBigDecimal: Arbitrary[BigDecimal] =
+      Arbitrary(arbitrary[Double].map(n => BigDecimal(n.toString)))
+    laws[OrderLaws, BigDecimal].check(_.order)
+    laws[GroupLaws, BigDecimal].check(_.commutativeGroup)
+  }
 
   laws[GroupLaws, (Int, Int)].check(_.band)
 
@@ -96,6 +128,9 @@ class LawTests extends FunSuite with Discipline {
 
   implicit val arbitraryComparison: Arbitrary[Comparison] =
     Arbitrary(Gen.oneOf(Comparison.GreaterThan, Comparison.EqualTo, Comparison.LessThan))
+
+  implicit val cogenComparison: Cogen[Comparison] =
+    Cogen[Int].contramap(_.toInt)
 
   laws[OrderLaws, Comparison].check(_.eqv)
 
@@ -151,12 +186,16 @@ class LawTests extends FunSuite with Discipline {
       val order = new Random(seed).shuffle(Vector.range(0, nMax))
       Order.by { (n: N) => order(n.n) }
     })
+    implicit val cogNOrder: Cogen[Order[N]] =
+      Cogen[Unit].contramap(_ => ())
     // The arbitrary `Eq[N]` values are created by mapping N values to random
     // integers.
     implicit val arbNEq: Arbitrary[Eq[N]] = Arbitrary(arbitrary[Int].map { seed =>
       val mapping = new Random(seed).shuffle(Vector.range(0, nMax))
       Eq.by { (n: N) => mapping(n.n) }
     })
+    implicit val cogNEq: Cogen[Eq[N]] =
+      Cogen[Unit].contramap(_ => ())
     // needed because currently we don't have Vector instances
     implicit val vectorNEq: Eq[Vector[N]] = Eq.fromUniversalEquals
     // The `Eq[Order[N]]` instance enumerates all possible `N` values in a
@@ -193,6 +232,8 @@ class LawTests extends FunSuite with Discipline {
       Eq[A].on(_.a)
     implicit def hasEqArbitrary[A: Arbitrary]: Arbitrary[HasEq[A]] =
       Arbitrary(arbitrary[A].map(HasEq(_)))
+    implicit def hasCogen[A: Cogen]: Cogen[HasEq[A]] =
+      Cogen[A].contramap(_.a)
   }
 
   case class HasPartialOrder[A](a: A)
@@ -202,6 +243,8 @@ class LawTests extends FunSuite with Discipline {
       PartialOrder[A].on(_.a)
     implicit def hasPartialOrderArbitrary[A: Arbitrary]: Arbitrary[HasPartialOrder[A]] =
       Arbitrary(arbitrary[A].map(HasPartialOrder(_)))
+    implicit def hasCogen[A: Cogen]: Cogen[HasPartialOrder[A]] =
+      Cogen[A].contramap(_.a)
   }
 
   case class LawChecker[L <: Laws](name: String, laws: L) {

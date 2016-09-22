@@ -35,7 +35,6 @@ the identity function `x => x` (i.e. `flatMap(_)(x => x)`).
 
 ```tut:silent
 import cats._
-import cats.data.Xor
 
 implicit def optionMonad(implicit app: Applicative[Option]) =
   new Monad[Option] {
@@ -46,11 +45,11 @@ implicit def optionMonad(implicit app: Applicative[Option]) =
     override def pure[A](a: A): Option[A] = app.pure(a)
 
     @annotation.tailrec
-    def tailRecM[A, B](init: A)(fn: A => Option[A Xor B]): Option[B] =
+    def tailRecM[A, B](init: A)(fn: A => Option[Either[A, B]]): Option[B] =
       fn(init) match {
         case None => None
-        case Some(Xor.Right(b)) => Some(b)
-        case Some(Xor.Left(a)) => tailRecM(a)(fn)
+        case Some(Right(b)) => Some(b)
+        case Some(Left(a)) => tailRecM(a)(fn)
       }
   }
 ```
@@ -61,13 +60,30 @@ implicit def optionMonad(implicit app: Applicative[Option]) =
 follows this tradition by providing implementations of `flatten` and `map`
 derived from `flatMap` and `pure`.
 
+In addition to requiring `flatMap` and pure`, Cats has chosen to require
+`tailRecM` which encodes stack safe monadic recursion, as described in
+[Stack Safety for Free](http://functorial.com/stack-safety-for-free/index.pdf) by
+Phil Freeman. Because monadic recursion is so common in functional programming but
+is not stack safe on the JVM, Cats has chosen to require this method of all monad implementations
+as opposed to just a subset. All functions requiring monadic recursion in Cats is done via
+`tailRecM`.
+
+An example `Monad` implementation for `Option` is shown below. Note the tail recursive
+and therefore stack safe implementation of `tailRecM`.
+
 ```tut:silent
-implicit val listMonad = new Monad[List] {
-  def flatMap[A, B](fa: List[A])(f: A => List[B]): List[B] = fa.flatMap(f)
-  def pure[A](a: A): List[A] = List(a)
-  def tailRecM[A, B](a: A)(f: A => List[A Xor B]): List[B] =
-    defaultTailRecM(a)(f)
-}
+import scala.annotation.tailrec
+
+implicit val optionMonad = new Monad[Option] {
+  def flatMap[A, B](fa: Option[A])(f: A => Option[B]): Option[B] = fa.flatMap(f)
+  def pure[A](a: A): Option[A] = Some(a)
+
+  @tailrec
+  def tailRecM[A, B](a: A)(f: A => Option[Either[A, B]]): Option[B] = f(a) match {
+    case None              => None
+    case Some(Left(nextA)) => tailRecM(nextA)(f) // continue the recursion
+    case Some(Right(b))    => Some(b)            // recursion done
+  }
 ```
 
 Part of the reason for this is that name `flatMap` has special significance in
@@ -120,7 +136,7 @@ implicit def optionTMonad[F[_]](implicit F : Monad[F]) = {
           case Some(a) => f(a).value
         }
       }
-    def tailRecM[A, B](a: A)(f: A => OptionT[F, A Xor B]): OptionT[F, B] =
+    def tailRecM[A, B](a: A)(f: A => OptionT[F, Either[A, B]]): OptionT[F, B] =
       defaultTailRecM(a)(f)
   }
 }

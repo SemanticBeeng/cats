@@ -1,7 +1,7 @@
 package cats
 package laws
 
-import cats.data.{ Kleisli, Xor }
+import cats.data.Kleisli
 import cats.syntax.apply._
 import cats.syntax.flatMap._
 import cats.syntax.functor._
@@ -18,6 +18,9 @@ trait FlatMapLaws[F[_]] extends ApplyLaws[F] {
   def flatMapConsistentApply[A, B](fa: F[A], fab: F[A => B]): IsEq[F[B]] =
     fab.ap(fa) <-> fab.flatMap(f => fa.map(f))
 
+  def followedByConsistency[A, B](fa: F[A], fb: F[B]): IsEq[F[B]] =
+    F.followedBy(fa)(fb) <-> F.flatMap(fa)(_ => fb)
+
   /**
    * The composition of `cats.data.Kleisli` arrows is associative. This is
    * analogous to [[flatMapAssociativity]].
@@ -27,10 +30,13 @@ trait FlatMapLaws[F[_]] extends ApplyLaws[F] {
     ((kf andThen kg) andThen kh).run(a) <-> (kf andThen (kg andThen kh)).run(a)
   }
 
-  def tailRecMConsistentFlatMap[A](count: Int, a: A, f: A => F[A]): IsEq[F[A]] = {
+  def mproductConsistency[A, B](fa: F[A], fb: A => F[B]): IsEq[F[(A, B)]] =
+    F.mproduct(fa)(fb) <-> F.flatMap(fa)(a => F.map(fb(a))((a, _)))
+
+  def tailRecMConsistentFlatMap[A](a: A, f: A => F[A]): IsEq[F[A]] = {
     def bounce(n: Int) = F.tailRecM[(A, Int), A]((a, n)) { case (a0, i) =>
-      if (i > 0) f(a0).map(a1 => Xor.left((a1, i-1)))
-      else f(a0).map(Xor.right)
+      if (i > 0) f(a0).map(a1 => Left((a1, i-1)))
+      else f(a0).map(Right(_))
     }
     /*
      * The law is for n >= 1
@@ -39,8 +45,7 @@ trait FlatMapLaws[F[_]] extends ApplyLaws[F] {
      * (for instance List, becomes multiplicative, so
      * the memory is exponential in n).
      */
-    val smallN = (count % 2) + 2 // a number 1 to 3
-    bounce(smallN) <-> bounce(smallN - 1).flatMap(f)
+    bounce(1) <-> bounce(0).flatMap(f)
   }
 }
 

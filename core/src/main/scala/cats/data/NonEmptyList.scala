@@ -161,9 +161,9 @@ object NonEmptyList extends NonEmptyListInstances {
 private[data] sealed trait NonEmptyListInstances extends NonEmptyListInstances0 {
 
   implicit val catsDataInstancesForNonEmptyList: SemigroupK[NonEmptyList] with Reducible[NonEmptyList]
-      with Comonad[NonEmptyList] with Traverse[NonEmptyList] with Monad[NonEmptyList] with RecursiveTailRecM[NonEmptyList] =
+      with Comonad[NonEmptyList] with Traverse[NonEmptyList] with Monad[NonEmptyList] =
     new NonEmptyReducible[NonEmptyList, List] with SemigroupK[NonEmptyList] with Comonad[NonEmptyList]
-      with Traverse[NonEmptyList] with Monad[NonEmptyList] with RecursiveTailRecM[NonEmptyList] {
+      with Traverse[NonEmptyList] with Monad[NonEmptyList] {
 
       def combineK[A](a: NonEmptyList[A], b: NonEmptyList[A]): NonEmptyList[A] =
         a concat b
@@ -196,16 +196,16 @@ private[data] sealed trait NonEmptyListInstances extends NonEmptyListInstances0 
       override def foldRight[A, B](fa: NonEmptyList[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] =
         fa.foldRight(lb)(f)
 
-      def tailRecM[A, B](a: A)(f: A => NonEmptyList[A Xor B]): NonEmptyList[B] = {
+      def tailRecM[A, B](a: A)(f: A => NonEmptyList[Either[A, B]]): NonEmptyList[B] = {
         val buf = new ListBuffer[B]
-        @tailrec def go(v: NonEmptyList[A Xor B]): Unit = v.head match {
-            case Xor.Right(b) =>
+        @tailrec def go(v: NonEmptyList[Either[A, B]]): Unit = v.head match {
+            case Right(b) =>
             buf += b
             NonEmptyList.fromList(v.tail) match {
               case Some(t) => go(t)
               case None => ()
             }
-          case Xor.Left(a) => go(f(a) ++ v.tail)
+          case Left(a) => go(f(a) ++ v.tail)
           }
         go(f(a))
         NonEmptyList.fromListUnsafe(buf.result())

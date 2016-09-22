@@ -41,7 +41,6 @@ package object syntax {
   object traverseFilter extends TraverseFilterSyntax
   object tuple extends TupleSyntax
   object validated extends ValidatedSyntax
+  object vector extends VectorSyntax
   object writer extends WriterSyntax
-  object xor extends XorSyntax
-  object xort extends XorTSyntax
 }

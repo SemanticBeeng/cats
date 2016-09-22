@@ -51,7 +51,7 @@ private[data] sealed trait IdTMonad[F[_]] extends Monad[IdT[F, ?]] {
   def flatMap[A, B](fa: IdT[F, A])(f: A => IdT[F, B]): IdT[F, B] =
     fa.flatMap(f)
 
-  def tailRecM[A, B](a: A)(f: A => IdT[F, A Xor B]): IdT[F, B] =
+  def tailRecM[A, B](a: A)(f: A => IdT[F, Either[A, B]]): IdT[F, B] =
     IdT(F0.tailRecM(a)(f(_).value))
 }
 
@@ -85,9 +85,6 @@ private[data] sealed abstract class IdTInstances0 extends IdTInstances1 {
     new IdTMonad[F] {
       implicit val F0: Monad[F] = F
     }
-
-  implicit def catsDataRecursiveTailRecMForIdT[F[_]: RecursiveTailRecM]: RecursiveTailRecM[IdT[F, ?]] =
-    RecursiveTailRecM.create[IdT[F, ?]]
 
   implicit def catsDataFoldableForIdT[F[_]](implicit F: Foldable[F]): Foldable[IdT[F, ?]] =
     new IdTFoldable[F] {
