@@ -1,6 +1,7 @@
 package cats
 
 import scala.annotation.tailrec
+
 import cats.syntax.all._
 
 /**
@@ -74,8 +75,11 @@ sealed abstract class Eval[+A] extends Serializable { self =>
       case c: Eval.Compute[A] =>
         new Eval.Compute[B] {
           type Start = c.Start
-          val start = c.start
-          val run = (s: c.Start) =>
+          // See https://issues.scala-lang.org/browse/SI-9931 for an explanation
+          // of why the type annotations are necessary in these two lines on
+          // Scala 2.12.0.
+          val start: () => Eval[Start] = c.start
+          val run: Start => Eval[B] = (s: c.Start) =>
             new Eval.Compute[B] {
               type Start = A
               val start = () => c.run(s)
@@ -105,7 +109,6 @@ sealed abstract class Eval[+A] extends Serializable { self =>
    */
   def memoize: Eval[A]
 }
-
 
 /**
  * Construct an eager Eval[A] instance.
@@ -203,15 +206,43 @@ object Eval extends EvalInstances {
     new Eval.Call[A](a _) {}
 
   /**
-   * Static Eval instances for some common values.
+   * Static Eval instance for common value `Unit`.
    *
-   * These can be useful in cases where the same values may be needed
+   * This can be useful in cases where the same value may be needed
    * many times.
    */
   val Unit: Eval[Unit] = Now(())
+
+  /**
+   * Static Eval instance for common value `true`.
+   *
+   * This can be useful in cases where the same value may be needed
+   * many times.
+   */
   val True: Eval[Boolean] = Now(true)
+
+  /**
+   * Static Eval instance for common value `false`.
+   *
+   * This can be useful in cases where the same value may be needed
+   * many times.
+   */
   val False: Eval[Boolean] = Now(false)
+
+  /**
+   * Static Eval instance for common value `0`.
+   *
+   * This can be useful in cases where the same value may be needed
+   * many times.
+   */
   val Zero: Eval[Int] = Now(0)
+
+  /**
+   * Static Eval instance for common value `1`.
+   *
+   * This can be useful in cases where the same value may be needed
+   * many times.
+   */
   val One: Eval[Int] = Now(1)
 
   /**
@@ -227,7 +258,10 @@ object Eval extends EvalInstances {
   }
 
   object Call {
-    /** Collapse the call stack for eager evaluations */
+
+    /**
+     * Collapse the call stack for eager evaluations.
+     */
     @tailrec private def loop[A](fa: Eval[A]): Eval[A] = fa match {
       case call: Eval.Call[A] =>
         loop(call.thunk())
@@ -294,17 +328,37 @@ object Eval extends EvalInstances {
 
 private[cats] trait EvalInstances extends EvalInstances0 {
 
-  implicit val catsBimonadForEval: Bimonad[Eval] with Monad[Eval] =
-    new Bimonad[Eval] with Monad[Eval] {
+  implicit val catsBimonadForEval: Bimonad[Eval] =
+    new Bimonad[Eval] with StackSafeMonad[Eval] {
       override def map[A, B](fa: Eval[A])(f: A => B): Eval[B] = fa.map(f)
       def pure[A](a: A): Eval[A] = Now(a)
       def flatMap[A, B](fa: Eval[A])(f: A => Eval[B]): Eval[B] = fa.flatMap(f)
       def extract[A](la: Eval[A]): A = la.value
       def coflatMap[A, B](fa: Eval[A])(f: Eval[A] => B): Eval[B] = Later(f(fa))
-      def tailRecM[A, B](a: A)(f: A => Eval[Either[A, B]]): Eval[B] = f(a).flatMap { // OK because Eval is trampolined
-        case Left(nextA) => tailRecM(nextA)(f)
-        case Right(b)    => pure(b)
-      }
+    }
+
+  implicit val catsReducibleForEval: Reducible[Eval] =
+    new Reducible[Eval] {
+      def foldLeft[A, B](fa: Eval[A], b: B)(f: (B, A) => B): B =
+        f(b, fa.value)
+      def foldRight[A, B](fa: Eval[A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] =
+        fa.flatMap(f(_, lb))
+
+      override def reduce[A](fa: Eval[A])(implicit A: Semigroup[A]): A =
+        fa.value
+      override def reduceLeft[A](fa: Eval[A])(f: (A, A) => A): A =
+        fa.value
+      def reduceLeftTo[A, B](fa: Eval[A])(f: A => B)(g: (B, A) => B): B =
+        f(fa.value)
+      override def reduceRight[A](fa: Eval[A])(f: (A, Eval[A]) => Eval[A]): Eval[A] =
+        fa
+      def reduceRightTo[A, B](fa: Eval[A])(f: A => B)(g: (A, Eval[B]) => Eval[B]): Eval[B] =
+        fa.map(f)
+      override def reduceRightOption[A](fa: Eval[A])(f: (A, Eval[A]) => Eval[A]): Eval[Option[A]] =
+        fa.map(Some(_))
+      override def reduceRightToOption[A, B](fa: Eval[A])(f: A => B)(g: (A, Eval[B]) => Eval[B]): Eval[Option[B]] =
+        fa.map { a => Some(f(a)) }
+      override def size[A](f: Eval[A]): Long = 1L
     }
 
   implicit def catsOrderForEval[A: Order]: Order[Eval[A]] =

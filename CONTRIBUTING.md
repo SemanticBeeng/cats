@@ -1,7 +1,8 @@
 ---
-layout: default
+layout: page
 title:  "Contributing"
 section: "contributing"
+position: 5
 ---
 
 # Contributor guide
@@ -170,12 +171,12 @@ Write about checking laws
 ### source for the documentation
 The documentation for this website is stored alongside the source, in the [docs subproject](https://github.com/typelevel/cats/tree/master/docs).
 
-* The source for the static pages is in `docs/src/site`
 * The source for the tut compiled pages is in `docs/src/main/tut`
+* The menu structure for these pages is in `docs/src/main/resources/microsite/data/menu.yml`
 
 ### Generating the Site
 
-run `sbt docs/makeSite`
+run `sbt docs/makeMicrosite`
 
 ### Previewing the site
 
@@ -193,7 +194,7 @@ run `sbt docs/makeSite`
 
 4. Navigate to http://localhost:4000/cats/ in your browser
 
-5. Make changes to your site, and run `sbt makeSite` to regenerate the site. The changes should be reflected as soon as you run `makeSite`.
+5. Make changes to your site, and run `sbt docs/makeMicrosite` to regenerate the site. The changes should be reflected as soon as you run `makeMicrosite`.
 
 ### Compiler verified documentation
 
@@ -264,9 +265,9 @@ venues.
 We hope that our community will be respectful, helpful, and kind. If
 you find yourself embroiled in a situation that becomes heated, or
 that fails to live up to our expectations, you should disengage and
-contact one of the [project maintainers](README.md#maintainers) in private. We
-hope to avoid letting minor aggressions and misunderstandings escalate
-into larger problems.
+contact one of the [project maintainers](https://github.com/typelevel/cats#maintainers)
+in private. We hope to avoid letting minor aggressions and misunderstandings
+escalate into larger problems.
 
-If you are being harassed, please contact one of [us](README.md#maintainers)
+If you are being harassed, please contact one of [us](https://github.com/typelevel/cats#maintainers)
 immediately so that we can support you.

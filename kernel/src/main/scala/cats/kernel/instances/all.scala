@@ -22,6 +22,8 @@ trait AllInstances
     with ShortInstances
     with StreamInstances
     with StringInstances
+    with SymbolInstances
     with TupleInstances
     with UnitInstances
+    with UUIDInstances
     with VectorInstances

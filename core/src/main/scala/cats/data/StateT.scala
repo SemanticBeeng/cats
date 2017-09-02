@@ -11,24 +11,23 @@ import cats.syntax.either._
  */
 final class StateT[F[_], S, A](val runF: F[S => F[(S, A)]]) extends Serializable {
 
-  def flatMap[B](fas: A => StateT[F, S, B])(implicit F: Monad[F]): StateT[F, S, B] =
-    StateT(s =>
-      F.flatMap(runF) { fsf =>
-        F.flatMap(fsf(s)) { case (s, a) =>
+  def flatMap[B](fas: A => StateT[F, S, B])(implicit F: FlatMap[F]): StateT[F, S, B] =
+    StateT.applyF(F.map(runF) { sfsa =>
+      sfsa.andThen { fsa =>
+        F.flatMap(fsa) { case (s, a) =>
           fas(a).run(s)
         }
-      })
-
-  def flatMapF[B](faf: A => F[B])(implicit F: Monad[F]): StateT[F, S, B] =
-    StateT(s =>
-      F.flatMap(runF) { fsf =>
-        F.flatMap(fsf(s)) { case (s, a) =>
-          F.map(faf(a))((s, _))
-        }
       }
-    )
+    })
 
-  def map[B](f: A => B)(implicit F: Monad[F]): StateT[F, S, B] =
+  def flatMapF[B](faf: A => F[B])(implicit F: FlatMap[F]): StateT[F, S, B] =
+    StateT.applyF(F.map(runF) { sfsa =>
+      sfsa.andThen { fsa =>
+        F.flatMap(fsa) { case (s, a) => F.map(faf(a))((s, _)) }
+      }
+    })
+
+  def map[B](f: A => B)(implicit F: Functor[F]): StateT[F, S, B] =
     transform { case (s, a) => (s, f(a)) }
 
   /**
@@ -69,10 +68,13 @@ final class StateT[F[_], S, A](val runF: F[S => F[(S, A)]]) extends Serializable
   /**
    * Like [[map]], but also allows the state (`S`) value to be modified.
    */
-  def transform[B](f: (S, A) => (S, B))(implicit F: Monad[F]): StateT[F, S, B] =
-    transformF { fsa =>
-      F.map(fsa){ case (s, a) => f(s, a) }
-    }
+  def transform[B](f: (S, A) => (S, B))(implicit F: Functor[F]): StateT[F, S, B] =
+    StateT.applyF(
+      F.map(runF) { sfsa =>
+        sfsa.andThen { fsa =>
+          F.map(fsa) { case (s, a) => f(s, a) }
+        }
+      })
 
   /**
    * Like [[transform]], but allows the context to change from `F` to `G`.
@@ -98,31 +100,31 @@ final class StateT[F[_], S, A](val runF: F[S => F[(S, A)]]) extends Serializable
    * res1: Option[(GlobalEnv, Double)] = Some(((6,hello),5.0))
    * }}}
    */
-  def transformS[R](f: R => S, g: (R, S) => R)(implicit F: Monad[F]): StateT[F, R, A] =
-    StateT { r =>
-      F.flatMap(runF) { ff =>
+  def transformS[R](f: R => S, g: (R, S) => R)(implicit F: Functor[F]): StateT[F, R, A] =
+    StateT.applyF(F.map(runF) { sfsa =>
+      { r: R =>
         val s = f(r)
-        val nextState = ff(s)
-        F.map(nextState) { case (s, a) => (g(r, s), a) }
+        val fsa = sfsa(s)
+        F.map(fsa) { case (s, a) => (g(r, s), a) }
       }
-    }
+    })
 
   /**
    * Modify the state (`S`) component.
    */
-  def modify(f: S => S)(implicit F: Monad[F]): StateT[F, S, A] =
+  def modify(f: S => S)(implicit F: Functor[F]): StateT[F, S, A] =
     transform((s, a) => (f(s), a))
 
   /**
    * Inspect a value from the input state, without modifying the state.
    */
-  def inspect[B](f: S => B)(implicit F: Monad[F]): StateT[F, S, B] =
+  def inspect[B](f: S => B)(implicit F: Functor[F]): StateT[F, S, B] =
     transform((s, _) => (s, f(s)))
 
   /**
    * Get the input state, without modifying the state.
    */
-  def get(implicit F: Monad[F]): StateT[F, S, S] =
+  def get(implicit F: Functor[F]): StateT[F, S, S] =
     inspect(identity)
 }
 
@@ -151,6 +153,9 @@ object StateT extends StateTInstances {
   def modifyF[F[_], S](f: S => F[S])(implicit F: Applicative[F]): StateT[F, S, Unit] =
     StateT(s => F.map(f(s))(s => (s, ())))
 
+  def get[F[_], S](implicit F: Applicative[F]): StateT[F, S, S] =
+    StateT(s => F.pure((s, s)))
+
   def set[F[_], S](s: S)(implicit F: Applicative[F]): StateT[F, S, Unit] =
     StateT(_ => F.pure((s, ())))
 
@@ -159,24 +164,26 @@ object StateT extends StateTInstances {
 }
 
 private[data] sealed trait StateTInstances extends StateTInstances1 {
-  implicit def catsDataMonadStateForStateT[F[_], S](implicit F0: Monad[F]): MonadState[StateT[F, S, ?], S] =
-    new StateTMonadState[F, S] { implicit def F = F0 }
-
-  implicit def catsDataLiftForStateT[S]: TransLift.Aux[StateT[?[_], S, ?], Applicative] =
-    new StateTTransLift[S] {}
+  implicit def catsDataAlternativeForStateT[F[_], S](implicit FM: Monad[F], FA: Alternative[F]): Alternative[StateT[F, S, ?]] =
+    new StateTAlternative[F, S] { implicit def F = FM; implicit def G = FA }
 }
 
 private[data] sealed trait StateTInstances1 extends StateTInstances2 {
-  implicit def catsDataMonadCombineForStateT[F[_], S](implicit F0: MonadCombine[F]): MonadCombine[StateT[F, S, ?]] =
-    new StateTMonadCombine[F, S] { implicit def F = F0 }
-}
-
-private[data] sealed trait StateTInstances2 {
-  implicit def catsDataMonadForStateT[F[_], S](implicit F0: Monad[F]): Monad[StateT[F, S, ?]] =
-    new StateTMonad[F, S] { implicit def F = F0 }
+  implicit def catsDataMonadErrorForStateT[F[_], S, E](implicit F0: MonadError[F, E]): MonadError[StateT[F, S, ?], E] =
+    new StateTMonadError[F, S, E] { implicit def F = F0 }
 
   implicit def catsDataSemigroupKForStateT[F[_], S](implicit F0: Monad[F], G0: SemigroupK[F]): SemigroupK[StateT[F, S, ?]] =
     new StateTSemigroupK[F, S] { implicit def F = F0; implicit def G = G0 }
+}
+
+private[data] sealed trait StateTInstances2 extends StateTInstances3 {
+  implicit def catsDataMonadForStateT[F[_], S](implicit F0: Monad[F]): Monad[StateT[F, S, ?]] =
+    new StateTMonad[F, S] { implicit def F = F0 }
+}
+
+private[data] sealed trait StateTInstances3 {
+  implicit def catsDataFunctorForStateT[F[_], S](implicit F0: Functor[F]): Functor[StateT[F, S, ?]] =
+    new StateTFunctor[F, S] { implicit def F = F0 }
 }
 
 // To workaround SI-7139 `object State` needs to be defined inside the package object
@@ -212,7 +219,13 @@ private[data] abstract class StateFunctions {
   def set[S](s: S): State[S, Unit] = State(_ => (s, ()))
 }
 
-private[data] sealed trait StateTMonad[F[_], S] extends Monad[StateT[F, S, ?]] {
+private[data] sealed trait StateTFunctor[F[_], S] extends Functor[StateT[F, S, ?]] {
+  implicit def F: Functor[F]
+
+  override def map[A, B](fa: StateT[F, S, A])(f: A => B): StateT[F, S, B] = fa.map(f)
+}
+
+private[data] sealed trait StateTMonad[F[_], S] extends Monad[StateT[F, S, ?]] with StateTFunctor[F, S] {
   implicit def F: Monad[F]
 
   def pure[A](a: A): StateT[F, S, A] =
@@ -221,24 +234,10 @@ private[data] sealed trait StateTMonad[F[_], S] extends Monad[StateT[F, S, ?]] {
   def flatMap[A, B](fa: StateT[F, S, A])(f: A => StateT[F, S, B]): StateT[F, S, B] =
     fa.flatMap(f)
 
-  override def map[A, B](fa: StateT[F, S, A])(f: A => B): StateT[F, S, B] = fa.map(f)
-
   def tailRecM[A, B](a: A)(f: A => StateT[F, S, Either[A, B]]): StateT[F, S, B] =
     StateT[F, S, B](s => F.tailRecM[(S, A), (S, B)]((s, a)) {
       case (s, a) => F.map(f(a).run(s)) { case (s, ab) => ab.bimap((s, _), (s, _)) }
     })
-}
-
-private[data] sealed trait StateTMonadState[F[_], S] extends MonadState[StateT[F, S, ?], S] with StateTMonad[F, S] {
-  lazy val get: StateT[F, S, S] = StateT(s => F.pure((s, s)))
-
-  def set(s: S): StateT[F, S, Unit] = StateT(_ => F.pure((s, ())))
-}
-
-private[data] sealed trait StateTTransLift[S] extends TransLift[StateT[?[_], S, ?]] {
-  type TC[M[_]] = Applicative[M]
-
-  def liftT[M[_]: Applicative, A](ma: M[A]): StateT[M, S, A] = StateT(s => Applicative[M].map(ma)(s -> _))
 }
 
 private[data] sealed trait StateTSemigroupK[F[_], S] extends SemigroupK[StateT[F, S, ?]] {
@@ -249,9 +248,33 @@ private[data] sealed trait StateTSemigroupK[F[_], S] extends SemigroupK[StateT[F
     StateT(s => G.combineK(x.run(s), y.run(s)))
 }
 
-private[data] sealed trait StateTMonadCombine[F[_], S] extends MonadCombine[StateT[F, S, ?]] with StateTMonad[F, S] with StateTSemigroupK[F, S] with StateTTransLift[S] {
-  implicit def F: MonadCombine[F]
-  override def G: MonadCombine[F] = F
+private[data] sealed trait StateTAlternative[F[_], S] extends Alternative[StateT[F, S, ?]] with StateTFunctor[F, S] {
+  implicit def F: Monad[F]
+  def G: Alternative[F]
 
-  def empty[A]: StateT[F, S, A] = liftT[F, A](F.empty[A])
+  def combineK[A](x: StateT[F, S, A], y: StateT[F, S, A]): StateT[F, S, A] =
+    StateT[F, S, A](s => G.combineK(x.run(s), y.run(s)))(G)
+
+  def pure[A](a: A): StateT[F, S, A] =
+    StateT.pure[F, S, A](a)(G)
+
+  def empty[A]: StateT[F, S, A] =
+    StateT.lift[F, S, A](G.empty[A])(G)
+
+  override def ap[A, B](ff: StateT[F, S, A => B])(fa: StateT[F, S, A]): StateT[F, S, B] =
+    StateT[F, S, B]((s: S) =>
+      F.flatMap(ff.run(s)) { sab =>
+        val (sn, f) = sab
+        F.map(fa.run(sn)) { case (snn, a) => (snn, f(a)) }
+      }
+    )
+}
+
+private[data] sealed trait StateTMonadError[F[_], S, E] extends StateTMonad[F, S] with MonadError[StateT[F, S, ?], E] {
+  implicit def F: MonadError[F, E]
+
+  def raiseError[A](e: E): StateT[F, S, A] = StateT.lift(F.raiseError(e))
+
+  def handleErrorWith[A](fa: StateT[F, S, A])(f: E => StateT[F, S, A]): StateT[F, S, A] =
+    StateT(s => F.handleErrorWith(fa.run(s))(e => f(e).run(s)))
 }

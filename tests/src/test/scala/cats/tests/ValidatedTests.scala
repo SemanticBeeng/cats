@@ -1,13 +1,13 @@
 package cats
 package tests
 
-import cats.data.{EitherT, NonEmptyList, Validated, ValidatedNel}
-import cats.data.Validated.{Valid, Invalid}
-import cats.laws.discipline.{BitraverseTests, TraverseTests, ApplicativeErrorTests, SerializableTests, CartesianTests}
+import cats.data._
+import cats.data.Validated.{Invalid, Valid}
+import cats.laws.discipline._
 import org.scalacheck.Arbitrary._
-import cats.laws.discipline.{SemigroupKTests}
+import cats.laws.discipline.SemigroupKTests
 import cats.laws.discipline.arbitrary._
-import cats.kernel.laws.{OrderLaws, GroupLaws}
+import cats.kernel.laws.{GroupLaws, OrderLaws}
 
 import scala.util.Try
 
@@ -114,6 +114,25 @@ class ValidatedTests extends CatsSuite {
     }
   }
 
+  test("findValid accumulates failures") {
+    forAll { (v: Validated[String, Int], u: Validated[String, Int]) =>
+      v findValid u shouldEqual { (v, u) match {
+        case (vv @ Valid(_), _) => vv
+        case (_, uu @ Valid(_)) => uu
+        case (Invalid(s1), Invalid(s2)) => Invalid(s1 ++ s2)
+      }}
+    }
+  }
+
+  test("orElse ignores left failure") {
+    forAll { (v: Validated[String, Int], u: Validated[String, Int]) =>
+      v orElse u shouldEqual { (v, u) match {
+        case (vv @ Valid(_), _) => vv
+        case (_, uu) => uu
+      }}
+    }
+  }
+
   test("valueOr consistent with swap then map then merge") {
     forAll { (v: Validated[String, Int], f: String => Int) =>
       v.valueOr(f) should === (v.swap.map(f).merge)
@@ -168,6 +187,18 @@ class ValidatedTests extends CatsSuite {
     }
   }
 
+  test("fromIor consistent with Ior.toValidated"){
+    forAll { (i: Ior[String, Int]) =>
+      Validated.fromIor(i) should === (i.toValidated)
+    }
+  }
+
+  test("toIor then fromEither is identity") {
+    forAll { (v: Validated[String, Int]) =>
+      Validated.fromIor(v.toIor) should === (v)
+    }
+  }
+
   test("isValid after combine, iff both are valid") {
     forAll { (lhs: Validated[Int, String], rhs: Validated[Int, String]) =>
       lhs.combine(rhs).isValid should === (lhs.isValid && rhs.isValid)
@@ -214,6 +245,22 @@ class ValidatedTests extends CatsSuite {
     forAll { (x: Validated[String, Int], s: String, p: Int => Boolean) =>
       if (x.exists(!p(_))) {
         x.ensure(s)(p) should === (Validated.invalid(s))
+      }
+    }
+  }
+
+  test("ensureOr on Invalid is identity") {
+    forAll { (x: Validated[Int,String], f: String => Int, p: String => Boolean) =>
+      if (x.isInvalid) {
+        x.ensureOr(f)(p) should === (x)
+      }
+    }
+  }
+
+  test("ensureOr should fail if predicate not satisfied") {
+    forAll { (x: Validated[String, Int], f: Int => String, p: Int => Boolean) =>
+      if (x.exists(!p(_))) {
+        x.ensureOr(f)(p).isInvalid shouldBe true
       }
     }
   }

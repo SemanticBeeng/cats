@@ -139,6 +139,15 @@ abstract class OrderFunctions[O[T] <: Order[T]] extends PartialOrderFunctions[O]
     ev.max(x, y)
 }
 
+trait OrderToOrderingConversion {
+  /**
+   * Implicitly derive a `scala.math.Ordering[A]` from a `Order[A]`
+   * instance.
+   */
+  implicit def catsKernelOrderingForOrder[A](implicit ev: Order[A]): Ordering[A] =
+    ev.toOrdering
+}
+
 object Order extends OrderFunctions[Order] {
   /**
    * Access an implicit `Order[A]`.
@@ -203,4 +212,11 @@ object Order extends OrderFunctions[Order] {
 
       override def toOrdering: Ordering[A] = ev
     }
+
+  def fromComparable[A <: Comparable[A]]: Order[A] = {
+    new Order[A] {
+      override def compare(x: A, y: A): Int =
+        x compareTo y
+    }
+  }
 }

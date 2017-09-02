@@ -1,6 +1,7 @@
 package cats
 package tests
 
+import cats.Functor
 import cats.data._
 import cats.functor._
 import cats.laws.discipline._
@@ -13,12 +14,7 @@ class NestedTests extends CatsSuite {
   // Scalacheck to calm down a bit so we don't hit memory and test duration
   // issues.
   implicit override val generatorDrivenConfig: PropertyCheckConfiguration =
-    PropertyCheckConfig(maxSize = 5, minSuccessful = 20)
-
-  implicit val iso = {
-    implicit val instance = ListWrapper.functor
-    invariant[Nested[List, ListWrapper, ?]]
-  }
+    PropertyCheckConfiguration(minSuccessful = 20, sizeRange = 5)
 
   {
     // Invariant composition
@@ -49,25 +45,6 @@ class NestedTests extends CatsSuite {
   }
 
   {
-    // FunctorFilter composition
-    implicit val instance = ListWrapper.functorFilter
-    checkAll("Nested[List, ListWrapper, ?]", FunctorFilterTests[Nested[List, ListWrapper, ?]].functorFilter[Int, Int, Int])
-    checkAll("FunctorFilter[Nested[List, ListWrapper, ?]]", SerializableTests.serializable(FunctorFilter[Nested[List, ListWrapper, ?]]))
-
-    test("collect consistency") {
-      forAll { l: Nested[List, ListWrapper, Int] =>
-        l.collect(evenPf).value should === (l.value.map(_.collect(evenPf)))
-      }
-    }
-
-    test("filter consistency") {
-      forAll { l: Nested[List, ListWrapper, Int] =>
-        l.filter(even).value should === (l.value.map(_.filter(even)))
-      }
-    }
-  }
-
-  {
     // Covariant + contravariant functor composition
     checkAll("Nested[Option, Show, ?]", ContravariantTests[Nested[Option, Show, ?]].contravariant[Int, Int, Int])
     checkAll("Contravariant[Nested[Option, Show, ?]]", SerializableTests.serializable(Contravariant[Nested[Option, Show, ?]]))
@@ -76,18 +53,21 @@ class NestedTests extends CatsSuite {
   {
     // Contravariant + Contravariant = Functor
     type ConstInt[A] = Const[Int, A]
-    // SI-2712
-    implicit val instance = Nested.catsDataContravariantForNested[ConstInt, Show]
-    implicit val arbitrary = catsLawsArbitraryForNested[ConstInt, Show, Int]
-    implicit val eqv = Nested.catsDataEqForNested[ConstInt, Show, Int]
     checkAll("Nested[Const[Int, ?], Show, ?]", FunctorTests[Nested[ConstInt, Show, ?]].functor[Int, Int, Int])
-    checkAll("Functor[Nested[Const[Int, ?], Show, ?]]", SerializableTests.serializable(instance))
+    checkAll("Functor[Nested[Const[Int, ?], Show, ?]]", SerializableTests.serializable(Functor[Nested[ConstInt, Show, ?]]))
   }
 
   {
     // Contravariant + Functor = Contravariant
     checkAll("Nested[Show, Option, ?]", ContravariantTests[Nested[Show, Option, ?]].contravariant[Int, Int, Int])
     checkAll("Contravariant[Nested[Show, Option, ?]]", SerializableTests.serializable(Contravariant[Nested[Show, Option, ?]]))
+  }
+
+  {
+    // Apply composition
+    implicit val instance = ListWrapper.applyInstance
+    checkAll("Nested[List, ListWrapper, ?]", ApplyTests[Nested[List, ListWrapper, ?]].apply[Int, Int, Int])
+    checkAll("Apply[Nested[List, ListWrapper, ?]]", SerializableTests.serializable(Apply[Nested[List, ListWrapper, ?]]))
   }
 
   {
@@ -119,14 +99,17 @@ class NestedTests extends CatsSuite {
   }
 
   {
-    // TraverseFilter composition
-    implicit val instance = ListWrapper.traverseFilter
-    checkAll("Nested[List, ListWrapper, ?]", TraverseFilterTests[Nested[List, ListWrapper, ?]].traverseFilter[Int, Int, Int, List[Int], Option, Option])
-    checkAll("TraverseFilter[Nested[List, ListWrapper, ?]]", SerializableTests.serializable(TraverseFilter[Nested[List, ListWrapper, ?]]))
+    // Reducible composition
+    implicit val instance = ListWrapper.foldable
+    checkAll("Nested[NonEmptyList, OneAnd[ListWrapper, ?], ?]", ReducibleTests[Nested[NonEmptyList, OneAnd[ListWrapper, ?], ?]].reducible[Option, Int, Int])
+    checkAll("Reducible[Nested[NonEmptyList, OneAnd[ListWrapper, ?], ?]]", SerializableTests.serializable(Reducible[Nested[NonEmptyList, OneAnd[ListWrapper, ?], ?]]))
   }
 
-  checkAll("Nested[NonEmptyList, NonEmptyVector, ?]", ReducibleTests[Nested[NonEmptyList, NonEmptyVector, ?]].reducible[Option, Int, Int])
-  checkAll("Reducible[Nested[NonEmptyList, NonEmptyVector, ?]]", SerializableTests.serializable(Reducible[Nested[NonEmptyList, NonEmptyVector, ?]]))
+  {
+    //NonEmptyTraverse composition
+    checkAll("Nested[NonEmptyList, NonEmptyVector, ?]", NonEmptyTraverseTests[Nested[NonEmptyList, NonEmptyVector, ?]].nonEmptyTraverse[Option, Int, Int, Int, Int, Option, Option])
+    checkAll("NonEmptyTraverse[Nested[NonEmptyList, NonEmptyVector, ?]]", SerializableTests.serializable(NonEmptyTraverse[Nested[NonEmptyList, NonEmptyVector, ?]]))
+  }
 
   {
     // SemigroupK composition

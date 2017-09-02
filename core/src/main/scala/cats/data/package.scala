@@ -2,7 +2,9 @@ package cats
 
 package object data {
   type NonEmptyStream[A] = OneAnd[Stream, A]
-  type ValidatedNel[E, A] = Validated[NonEmptyList[E], A]
+  type ValidatedNel[+E, +A] = Validated[NonEmptyList[E], A]
+  type IorNel[+B, +A] = Ior[NonEmptyList[B], A]
+  type EitherNel[+E, +A] = Either[NonEmptyList[E], A]
 
   def NonEmptyStream[A](head: A, tail: Stream[A] = Stream.empty): NonEmptyStream[A] =
     OneAnd(head, tail)
@@ -13,6 +15,7 @@ package object data {
   val ReaderT = Kleisli
 
   type Reader[A, B] = ReaderT[Id, A, B]
+
   object Reader {
     def apply[A, B](f: A => B): Reader[A, B] = ReaderT[Id, A, B](f)
   }
@@ -28,4 +31,13 @@ package object data {
 
   type State[S, A] = StateT[Eval, S, A]
   object State extends StateFunctions
+
+  type RWST[F[_], E, S, L, A] = ReaderWriterStateT[F, E, S, L, A]
+  val RWST = ReaderWriterStateT
+
+  type ReaderWriterState[E, L, S, A] = ReaderWriterStateT[Eval, E, L, S, A]
+  object ReaderWriterState extends RWSFunctions
+
+  type RWS[E, L, S, A] = ReaderWriterState[E, L, S, A]
+  val RWS = ReaderWriterState
 }

@@ -10,7 +10,7 @@ import cats.syntax.either._
  *
  * It may also be said that `OptionT` is a monad transformer for `Option`.
  *
- * For more information, see the [[http://typelevel.org/cats/tut/optiont.html documentation]].
+ * For more information, see the [[http://typelevel.org/cats/datatypes/optiont.html documentation]].
  */
 final case class OptionT[F[_], A](value: F[Option[A]]) {
 
@@ -103,9 +103,6 @@ final case class OptionT[F[_], A](value: F[Option[A]]) {
   def ===(that: OptionT[F, A])(implicit eq: Eq[F[Option[A]]]): Boolean =
     eq.eqv(value, that.value)
 
-  def traverseFilter[G[_], B](f: A => G[Option[B]])(implicit F: Traverse[F], G: Applicative[G]): G[OptionT[F, B]] =
-    G.map(F.composeFilter(optionInstance).traverseFilter(value)(f))(OptionT.apply)
-
   def traverse[G[_], B](f: A => G[B])(implicit F: Traverse[F], G: Applicative[G]): G[OptionT[F, B]] =
     G.map(F.compose(optionInstance).traverse(value)(f))(OptionT.apply)
 
@@ -138,12 +135,36 @@ final case class OptionT[F[_], A](value: F[Option[A]]) {
 }
 
 object OptionT extends OptionTInstances {
-  def pure[F[_], A](a: A)(implicit F: Applicative[F]): OptionT[F, A] =
-    OptionT(F.pure(Some(a)))
 
-  /** An alias for pure */
-  def some[F[_], A](a: A)(implicit F: Applicative[F]): OptionT[F, A] =
-    pure(a)
+  /**
+   * Uses the [[http://typelevel.org/cats/guidelines.html#partially-applied-type-params Partially Applied Type Params technique]] for ergonomics.
+   */
+  private[data] final class PurePartiallyApplied[F[_]](val dummy: Boolean = true ) extends AnyVal {
+    def apply[A](value: A)(implicit F: Applicative[F]): OptionT[F, A] =
+      OptionT(F.pure(Some(value)))
+  }
+
+  /** Creates a `OptionT[A]` from an `A`
+   *
+   * {{{
+   * scala> import cats.implicits._
+   * scala> OptionT.pure[List](2)
+   * res0: OptionT[List, Int] = OptionT(List(Some(2)))
+   * }}}
+   *
+   */
+  def pure[F[_]]: PurePartiallyApplied[F] = new PurePartiallyApplied[F]
+
+  /** An alias for pure
+   *
+   * {{{
+   * scala> import cats.implicits._
+   * scala> OptionT.some[List](2)
+   * res0: OptionT[List, Int] = OptionT(List(Some(2)))
+   * }}}
+   *
+   */
+  def some[F[_]]: PurePartiallyApplied[F] = pure
 
   def none[F[_], A](implicit F: Applicative[F]) : OptionT[F, A] =
     OptionT(F.pure(None))
@@ -151,20 +172,19 @@ object OptionT extends OptionTInstances {
   /**
    * Transforms an `Option` into an `OptionT`, lifted into the specified `Applicative`.
    *
-   * Note: The return type is a `FromOptionPartiallyApplied[F]`, which has an apply method
-   * on it, allowing you to call `fromOption` like this:
    * {{{
    * scala> import cats.implicits._
    * scala> val o: Option[Int] = Some(2)
    * scala> OptionT.fromOption[List](o)
    * res0: OptionT[List, Int] = OptionT(List(Some(2)))
    * }}}
-   *
-   * The reason for the indirection is to emulate currying type parameters.
    */
   def fromOption[F[_]]: FromOptionPartiallyApplied[F] = new FromOptionPartiallyApplied
 
-  final class FromOptionPartiallyApplied[F[_]] private[OptionT] {
+  /**
+   * Uses the [[http://typelevel.org/cats/guidelines.html#partially-applied-type-params Partially Applied Type Params technique]] for ergonomics.
+   */
+  private[data] final class FromOptionPartiallyApplied[F[_]](val dummy: Boolean = true ) extends AnyVal {
     def apply[A](value: Option[A])(implicit F: Applicative[F]): OptionT[F, A] =
       OptionT(F.pure(value))
   }
@@ -207,13 +227,6 @@ private[data] sealed trait OptionTInstances0 extends OptionTInstances1 {
 }
 
 private[data] sealed trait OptionTInstances1 extends OptionTInstances2 {
-  // do NOT change this to val! I know it looks like it should work, and really I agree, but it doesn't (for... reasons)
-  implicit def catsDataTransLiftForOptionT: TransLift.Aux[OptionT, Functor] =
-    new TransLift[OptionT] {
-      type TC[M[_]] = Functor[M]
-
-      def liftT[M[_]: Functor, A](ma: M[A]): OptionT[M, A] = OptionT.liftF(ma)
-    }
 
   implicit def catsDataMonoidKForOptionT[F[_]](implicit F0: Monad[F]): MonoidK[OptionT[F, ?]] =
     new OptionTMonoidK[F] { implicit val F = F0 }
@@ -223,22 +236,19 @@ private[data] sealed trait OptionTInstances1 extends OptionTInstances2 {
 }
 
 private[data] sealed trait OptionTInstances2 extends OptionTInstances3 {
-  implicit def catsDataTraverseForOptionT[F[_]](implicit F0: Traverse[F]): TraverseFilter[OptionT[F, ?]] =
-    new OptionTTraverseFilter[F] { implicit val F = F0 }
+  implicit def catsDataTraverseForOptionT[F[_]](implicit F0: Traverse[F]): Traverse[OptionT[F, ?]] =
+    new OptionTTraverse[F] { implicit val F = F0 }
 }
 
 private[data] sealed trait OptionTInstances3 {
-  implicit def catsDataFunctorFilterForOptionT[F[_]](implicit F0: Functor[F]): FunctorFilter[OptionT[F, ?]] =
+  implicit def catsDataFunctorForOptionT[F[_]](implicit F0: Functor[F]): Functor[OptionT[F, ?]] =
     new OptionTFunctor[F] { implicit val F = F0 }
 }
 
-private[data] trait OptionTFunctor[F[_]] extends FunctorFilter[OptionT[F, ?]] {
+private[data] trait OptionTFunctor[F[_]] extends Functor[OptionT[F, ?]] {
   implicit def F: Functor[F]
 
   override def map[A, B](fa: OptionT[F, A])(f: A => B): OptionT[F, B] = fa.map(f)
-
-  override def mapFilter[A, B](fa: OptionT[F, A])(f: A => Option[B]): OptionT[F, B] =
-    fa.mapFilter(f)
 }
 
 private[data] trait OptionTMonad[F[_]] extends Monad[OptionT[F, ?]] {
@@ -276,13 +286,10 @@ private[data] trait OptionTFoldable[F[_]] extends Foldable[OptionT[F, ?]] {
     fa.foldRight(lb)(f)
 }
 
-private[data] sealed trait OptionTTraverseFilter[F[_]] extends TraverseFilter[OptionT[F, ?]] with OptionTFoldable[F] {
+private[data] sealed trait OptionTTraverse[F[_]] extends Traverse[OptionT[F, ?]] with OptionTFoldable[F] {
   implicit def F: Traverse[F]
 
-  def traverseFilter[G[_]: Applicative, A, B](fa: OptionT[F, A])(f: A => G[Option[B]]): G[OptionT[F, B]] =
-    fa traverseFilter f
-
-  override def traverse[G[_]: Applicative, A, B](fa: OptionT[F, A])(f: A => G[B]): G[OptionT[F, B]] =
+  def traverse[G[_]: Applicative, A, B](fa: OptionT[F, A])(f: A => G[B]): G[OptionT[F, B]] =
     fa traverse f
 }
 

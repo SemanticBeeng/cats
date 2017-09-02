@@ -10,6 +10,7 @@ class EitherTests extends CatsSuite {
   implicit val iso = CartesianTests.Isomorphisms.invariant[Either[Int, ?]]
 
   checkAll("Either[String, Int]", GroupLaws[Either[String, Int]].monoid)
+  checkAll("Monoid[Either[String, Int]]", SerializableTests.serializable(Monoid[Either[String, Int]]))
 
   checkAll("Either[Int, Int]", CartesianTests[Either[Int, ?]].cartesian[Int, Int, Int])
   checkAll("Cartesian[Either[Int, ?]]", SerializableTests.serializable(Cartesian[Either[Int, ?]]))
@@ -27,6 +28,9 @@ class EitherTests extends CatsSuite {
 
   checkAll("Either[ListWrapper[String], ?]", SemigroupKTests[Either[ListWrapper[String], ?]].semigroupK[Int])
   checkAll("SemigroupK[Either[ListWrapper[String], ?]]", SerializableTests.serializable(SemigroupK[Either[ListWrapper[String], ?]]))
+
+  checkAll("Either[ListWrapper[String], Int]", GroupLaws[Either[ListWrapper[String], Int]].semigroup)
+  checkAll("Semigroup[Either[ListWrapper[String], Int]]", SerializableTests.serializable(Semigroup[Either[ListWrapper[String], Int]]))
 
   val partialOrder = catsStdPartialOrderForEither[Int, String]
   val order = implicitly[Order[Either[Int, String]]]
@@ -54,6 +58,13 @@ class EitherTests extends CatsSuite {
           r.leftCast[List[Byte]]: Either[List[Byte], String]
           assert(true)
       }
+    }
+  }
+
+  test("Left/Right id syntax") {
+    forAll { (e: Int) =>
+      assert(Left[Int, String](e) === e.asLeft[String])
+      assert(Right[String, Int](e) === e.asRight[String])
     }
   }
 
@@ -193,14 +204,6 @@ class EitherTests extends CatsSuite {
     }
   }
 
-  test("ensure on left is identity") {
-    forAll { (x: Either[Int, String], i: Int, p: String => Boolean) =>
-      if (x.isLeft) {
-        x.ensure(i)(p) should === (x)
-      }
-    }
-  }
-
   test("toIor then toEither is identity") {
     forAll { (x: Either[Int, String]) =>
       x.toIor.toEither should === (x)
@@ -248,4 +251,29 @@ class EitherTests extends CatsSuite {
       x.to[Option] should === (x.toOption)
     }
   }
+
+  test("partialCompare consistent with PartialOrder") {
+    forAll { (x: Either[Int, String], y: Either[Int, String])  =>
+      x.partialCompare(y) should === (partialOrder.partialCompare(x, y))
+    }
+  }
+
+  test("show Right") {
+    val either = Either.right[String, Int](10)
+    either.show should === ("Right(10)")
+  }
+
+  test("show Left") {
+    val either = Either.left[String, Int]("string")
+    either.show should === ("Left(string)")
+  }
+
+  test("ap consistent with Applicative") {
+    val fab = implicitly[Applicative[Either[String, ?]]]
+    forAll { (fa: Either[String, Int],
+              f: Int => String) =>
+      fa.ap(Either.right(f)) should === (fab.map(fa)(f))
+    }
+  }
+
 }

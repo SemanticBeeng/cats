@@ -1,5 +1,8 @@
 package cats
 
+import cats.data.State
+import cats.data.StateT
+
 import simulacrum.typeclass
 
 /**
@@ -33,24 +36,6 @@ import simulacrum.typeclass
   def traverse[G[_]: Applicative, A, B](fa: F[A])(f: A => G[B]): G[F[B]]
 
   /**
-   * Behaves just like traverse, but uses [[Unapply]] to find the
-   * Applicative instance for G.
-   *
-   * Example:
-   * {{{
-   * scala> import cats.implicits._
-   * scala> def parseInt(s: String): Either[String, Int] = Either.catchOnly[NumberFormatException](s.toInt).leftMap(_ => "no number")
-   * scala> val ns = List("1", "2", "3")
-   * scala> ns.traverseU(parseInt)
-   * res0: Either[String, List[Int]] = Right(List(1, 2, 3))
-   * scala> ns.traverse[Either[String, ?], Int](parseInt)
-   * res1: Either[String, List[Int]] = Right(List(1, 2, 3))
-   * }}}
-   */
-  def traverseU[A, GB](fa: F[A])(f: A => GB)(implicit U: Unapply[Applicative, GB]): U.M[F[U.A]] =
-    U.TC.traverse(fa)(a => U.subst(f(a)))(this)
-
-  /**
    * A traverse followed by flattening the inner result.
    *
    * Example:
@@ -58,11 +43,11 @@ import simulacrum.typeclass
    * scala> import cats.implicits._
    * scala> def parseInt(s: String): Option[Int] = Either.catchOnly[NumberFormatException](s.toInt).toOption
    * scala> val x = Option(List("1", "two", "3"))
-   * scala> x.traverseM(_.map(parseInt))
+   * scala> x.flatTraverse(_.map(parseInt))
    * res0: List[Option[Int]] = List(Some(1), None, Some(3))
    * }}}
    */
-  def traverseM[G[_], A, B](fa: F[A])(f: A => G[F[B]])(implicit G: Applicative[G], F: FlatMap[F]): G[F[B]] =
+  def flatTraverse[G[_], A, B](fa: F[A])(f: A => G[F[B]])(implicit G: Applicative[G], F: FlatMap[F]): G[F[B]] =
     G.map(traverse(fa)(f))(F.flatten)
 
   /**
@@ -84,22 +69,22 @@ import simulacrum.typeclass
     traverse(fga)(ga => ga)
 
   /**
-   * Behaves just like sequence, but uses [[Unapply]] to find the
-   * Applicative instance for G.
+   * Thread all the G effects through the F structure and flatten to invert the
+   * structure from F[G[F[A]]] to G[F[A]].
    *
    * Example:
    * {{{
-   * scala> import cats.data.{Validated, ValidatedNel}
    * scala> import cats.implicits._
-   * scala> val x: List[ValidatedNel[String, Int]] = List(Validated.valid(1), Validated.invalid("a"), Validated.invalid("b")).map(_.toValidatedNel)
-   * scala> x.sequenceU
-   * res0: cats.data.ValidatedNel[String,List[Int]] = Invalid(NonEmptyList(a, b))
-   * scala> x.sequence[ValidatedNel[String, ?], Int]
-   * res1: cats.data.ValidatedNel[String,List[Int]] = Invalid(NonEmptyList(a, b))
+   * scala> val x: List[Option[List[Int]]] = List(Some(List(1, 2)), Some(List(3)))
+   * scala> val y: List[Option[List[Int]]] = List(None, Some(List(3)))
+   * scala> x.flatSequence
+   * res0: Option[List[Int]] = Some(List(1, 2, 3))
+   * scala> y.flatSequence
+   * res1: Option[List[Int]] = None
    * }}}
    */
-  def sequenceU[GA](fga: F[GA])(implicit U: Unapply[Applicative, GA]): U.M[F[U.A]] =
-    traverse(fga)(U.subst)(U.TC)
+  def flatSequence[G[_], A](fgfa: F[G[F[A]]])(implicit G: Applicative[G], F: FlatMap[F]): G[F[A]] =
+    G.map(sequence(fgfa))(F.flatten)
 
   def compose[G[_]: Traverse]: Traverse[λ[α => F[G[α]]]] =
     new ComposedTraverse[F, G] {
@@ -107,12 +92,36 @@ import simulacrum.typeclass
       val G = Traverse[G]
     }
 
-  def composeFilter[G[_]: TraverseFilter]: TraverseFilter[λ[α => F[G[α]]]] =
-    new ComposedTraverseFilter[F, G] {
-      val F = self
-      val G = TraverseFilter[G]
-    }
-
   override def map[A, B](fa: F[A])(f: A => B): F[B] =
     traverse[Id, A, B](fa)(f)
+
+  /**
+   * Akin to [[map]], but also provides the value's index in structure
+   * F when calling the function.
+   */
+  def mapWithIndex[A, B](fa: F[A])(f: (A, Int) => B): F[B] =
+    traverse(fa)(a =>
+      State((s: Int) => (s + 1, f(a, s)))).runA(0).value
+
+  /**
+   * Akin to [[traverse]], but also provides the value's index in
+   * structure F when calling the function.
+   *
+   * This performs the traversal in a single pass but requires that
+   * effect G is monadic. An applicative traversal can be performed in
+   * two passes using [[zipWithIndex]] followed by [[traverse]].
+   */
+  def traverseWithIndexM[G[_], A, B](fa: F[A])(f: (A, Int) => G[B])(implicit G: Monad[G]): G[F[B]] =
+    traverse(fa)(a =>
+      StateT((s: Int) => G.map(f(a, s))(b => (s + 1, b)))).runA(0)
+
+  /**
+   * Traverses through the structure F, pairing the values with
+   * assigned indices.
+   *
+   * The behavior is consistent with the Scala collection library's
+   * `zipWithIndex` for collections such as `List`.
+   */
+  def zipWithIndex[A](fa: F[A]): F[(A, Int)] =
+    mapWithIndex(fa)((a, i) => (a, i))
 }

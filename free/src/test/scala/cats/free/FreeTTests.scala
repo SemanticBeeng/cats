@@ -5,9 +5,9 @@ import cats._
 import cats.arrow.FunctionK
 import cats.data._
 import cats.laws.discipline._
+import cats.laws.discipline.arbitrary._
 import cats.tests.CatsSuite
 import cats.instances.option._
-
 import org.scalacheck.{Arbitrary, Gen, Cogen}
 
 class FreeTTests extends CatsSuite {
@@ -27,27 +27,21 @@ class FreeTTests extends CatsSuite {
   }
 
   {
-    implicit val freeTSemigroupK: SemigroupK[FreeTOption] = FreeT.catsFreeCombineForFreeT[Option, Option]
+    implicit val freeTSemigroupK: SemigroupK[FreeTOption] = FreeT.catsFreeSemigroupKForFreeT[Option, Option]
     checkAll("FreeT[Option, Option, Int]", SemigroupKTests[FreeTOption].semigroupK[Int])
     checkAll("SemigroupK[FreeT[Option, Option, ?]]", SerializableTests.serializable(SemigroupK[FreeTOption]))
   }
 
   {
-    implicit val freeTCombine: MonadCombine[FreeTOption] = FreeT.catsFreeMonadCombineForFreeT[Option, Option]
-    checkAll("FreeT[Option, Option, Int]", MonadCombineTests[FreeTOption].monadCombine[Int, Int, Int])
-    checkAll("MonadCombine[FreeT[Option, Option, ?]]", SerializableTests.serializable(MonadCombine[FreeTOption]))
+    implicit val freeTAlternative: Alternative[FreeTOption] = FreeT.catsFreeAlternativeForFreeT[Option, Option]
+    checkAll("FreeT[Option, Option, Int]", AlternativeTests[FreeTOption].alternative[Int, Int, Int])
+    checkAll("Alternative[FreeT[Option, Option, ?]]", SerializableTests.serializable(Alternative[FreeTOption]))
   }
 
   {
     implicit val eqEitherTFA: Eq[EitherT[FreeTOption, Unit, Int]] = EitherT.catsDataEqForEitherT[FreeTOption, Unit, Int]
     checkAll("FreeT[Option, Option, Int]", MonadErrorTests[FreeTOption, Unit].monadError[Int, Int, Int])
     checkAll("MonadError[FreeT[Option, Option, ?], Unit]", SerializableTests.serializable(MonadError[FreeTOption, Unit]))
-  }
-
-  {
-    import StateT._
-    checkAll("FreeT[State[Int, ?], State[Int, ?], Int]", MonadStateTests[FreeTState, Int].monadState[Int, Int, Int])
-    checkAll("MonadState[FreeT[State[Int, ?],State[Int, ?], ?], Int]", SerializableTests.serializable(MonadState[FreeTState, Int]))
   }
 
   test("FlatMap stack safety tested with 50k flatMaps") {
@@ -96,30 +90,29 @@ class FreeTTests extends CatsSuite {
     val b = a.hoist(FunctionK.id)
   }
 
-  test("transLift for FreeT requires only Functor") {
-    implicit val transLiftInstance = FreeT.catsFreeTransLiftForFreeT[JustFunctor]
-    val d: FreeT[JustFunctor, JustFunctor, Int] = transLiftInstance.liftT[JustFunctor, Int](JustFunctor(1))
-  }
-
-  test("interpret to universal id equivalent to original instance") {
+  test("compile to universal id equivalent to original instance") {
     forAll { a: FreeTOption[Int] =>
-      val b = a.interpret(FunctionK.id)
+      val b = a.compile(FunctionK.id)
       Eq[FreeTOption[Int]].eqv(a, b) should ===(true)
+      val fk = FreeT.compile[Option, Option, Option](FunctionK.id)
+      a should === (fk(a))
     }
   }
 
-  test("interpret stack-safety") {
+  test("compile stack-safety") {
     val a = (0 until 50000).foldLeft(Applicative[FreeTOption].pure(()))(
       (fu, i) => fu.flatMap(u => Applicative[FreeTOption].pure(u))
     )
-    val b = a.interpret(FunctionK.id) // used to overflow
+    val b = a.compile(FunctionK.id) // used to overflow
   }
 
   test("foldMap consistent with runM") {
     forAll { a: FreeTOption[Int] =>
       val x = a.runM(identity)
       val y = a.foldMap(FunctionK.id)
+      val fk = FreeT.foldMap[Option, Option](FunctionK.id)
       Eq[Option[Int]].eqv(x, y) should ===(true)
+      y should === (fk(a))
     }
   }
 
@@ -137,9 +130,9 @@ class FreeTTests extends CatsSuite {
     result.toString.length should be > 0
   }
 
-  private[free] def liftTUCompilationTests() = {
+  private[free] def liftTCompilationTests() = {
     val a: Either[String, Int]= Right(42)
-    val b: FreeT[Option, Either[String, ?], Int] = FreeT.liftTU(a)
+    val b: FreeT[Option, Either[String, ?], Int] = FreeT.liftT(a)
   }
 
 }
@@ -149,7 +142,6 @@ object FreeTTests extends FreeTTestsInstances {
   import Arbitrary._
   import org.scalacheck.Arbitrary
 
-  implicit def freeTIntStateArb[A: Arbitrary]: Arbitrary[FreeTState[A]] = freeTArb[IntState, IntState, A]
 
   implicit def freeTArb[F[_], G[_]: Applicative, A](implicit F: Arbitrary[F[A]], G: Arbitrary[G[A]], A: Arbitrary[A]): Arbitrary[FreeT[F, G, A]] =
     Arbitrary(freeTGen[F, G, A](4))
@@ -160,7 +152,7 @@ object FreeTTests extends FreeTTestsInstances {
       F.arbitrary.map(FreeT.liftF[F, G, A])
     )
 
-    val nextDepth = Gen.chooseNum(1, maxDepth - 1)
+    val nextDepth = Gen.chooseNum(1, math.max(1, maxDepth - 1))
 
     def withFlatMapped = for {
       fDepth <- nextDepth
@@ -205,7 +197,7 @@ trait FreeTTestsInstances {
 
   implicit def intStateEq[A: Eq]: Eq[IntState[A]] = stateEq[Int, A]
 
-  implicit def intStateArb[A: Arbitrary]: Arbitrary[IntState[A]] = stateArbitrary[Int, A]
+  implicit def intStateArb[A: Arbitrary]: Arbitrary[IntState[A]] = catsLawArbitraryForState[Int, A]
 
   implicit def freeTOptionEq[A](implicit A: Eq[A], OM: Monad[Option]): Eq[FreeTOption[A]] = new Eq[FreeTOption[A]] {
     def eqv(a: FreeTOption[A], b: FreeTOption[A]) = Eq[Option[A]].eqv(a.runM(identity), b.runM(identity))

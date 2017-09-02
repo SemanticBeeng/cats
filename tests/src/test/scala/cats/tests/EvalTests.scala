@@ -3,21 +3,12 @@ package tests
 
 import scala.math.min
 import cats.laws.ComonadLaws
-import cats.laws.discipline.{BimonadTests, CartesianTests, MonadTests, SerializableTests}
+import cats.laws.discipline.{BimonadTests, CartesianTests, ReducibleTests, SerializableTests}
 import cats.laws.discipline.arbitrary._
 import cats.kernel.laws.{GroupLaws, OrderLaws}
 
 class EvalTests extends CatsSuite {
-
-  /**
-   * Class for spooky side-effects and action-at-a-distance.
-   *
-   * It is basically a mutable counter that can be used to measure how
-   * many times an otherwise pure function is being evaluted.
-   */
-  class Spooky(var counter: Int = 0) {
-    def increment(): Unit = counter += 1
-  }
+  implicit val eqThrow: Eq[Throwable] = Eq.allEqual
 
   /**
    * This method creates a Eval[A] instance (along with a
@@ -81,23 +72,28 @@ class EvalTests extends CatsSuite {
   }
 
   test(".value should evaluate only once on the result of .memoize"){
-    forAll { i: Eval[Int] =>
-      val spooky = new Spooky
-      val i2 = i.map(_ => spooky.increment).memoize
-      i2.value
-      spooky.counter should === (1)
-      i2.value
-      spooky.counter should === (1)
-    }
+    val spooky = new Spooky
+    val i2 = Eval.always(spooky.increment()).memoize
+    val i3 = Eval.now(()).flatMap(_ => Eval.later(spooky.increment())).memoize
+    i2.value
+    spooky.counter should === (1)
+    i2.value
+    spooky.counter should === (1)
+    i3.value
+    spooky.counter should === (2)
+    i3.value
+    spooky.counter should === (2)
   }
 
   {
     implicit val iso = CartesianTests.Isomorphisms.invariant[Eval]
     checkAll("Eval[Int]", BimonadTests[Eval].bimonad[Int, Int, Int])
-    checkAll("Eval[Int]", MonadTests[Eval].monad[Int, Int, Int])
   }
+
   checkAll("Bimonad[Eval]", SerializableTests.serializable(Bimonad[Eval]))
-  checkAll("Monad[Eval]", SerializableTests.serializable(Monad[Eval]))
+
+  checkAll("Eval[Int]", ReducibleTests[Eval].reducible[Option, Int, Int])
+  checkAll("Reducible[Eval]", SerializableTests.serializable(Reducible[Eval]))
 
   checkAll("Eval[Int]", GroupLaws[Eval[Int]].group)
 

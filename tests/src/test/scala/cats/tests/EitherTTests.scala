@@ -3,9 +3,11 @@ package tests
 
 import cats.data.EitherT
 import cats.functor.Bifunctor
+import cats.functor._
 import cats.laws.discipline._
 import cats.laws.discipline.arbitrary._
-import cats.kernel.laws.{OrderLaws, GroupLaws}
+import cats.kernel.laws.{GroupLaws, OrderLaws}
+
 
 class EitherTTests extends CatsSuite {
   implicit val iso = CartesianTests.Isomorphisms.invariant[EitherT[ListWrapper, String, ?]](EitherT.catsDataFunctorForEitherT(ListWrapper.functor))
@@ -45,6 +47,7 @@ class EitherTTests extends CatsSuite {
 
   {
     //if a Monad is defined
+
     implicit val F = ListWrapper.monad
     implicit val eq0 = EitherT.catsDataEqForEitherT[ListWrapper, String, Either[String, Int]]
     implicit val eq1 = EitherT.catsDataEqForEitherT[EitherT[ListWrapper, String, ?], String, Int](eq0)
@@ -55,6 +58,23 @@ class EitherTTests extends CatsSuite {
 
     checkAll("EitherT[ListWrapper, String, Int]", MonadErrorTests[EitherT[ListWrapper, String, ?], String].monadError[Int, Int, Int])
     checkAll("MonadError[EitherT[List, ?, ?]]", SerializableTests.serializable(MonadError[EitherT[ListWrapper, String, ?], String]))
+
+  }
+
+  {
+    // if a MonadError is defined
+    // Tests for catsDataMonadErrorFForEitherT instance, for recovery on errors of F.
+
+    implicit val eq1 = EitherT.catsDataEqForEitherT[Option, String, Either[Unit, String]]
+    implicit val eq2 = EitherT.catsDataEqForEitherT[EitherT[Option, String, ?], Unit, String](eq1)
+    implicit val me = EitherT.catsDataMonadErrorFForEitherT[Option, Unit, String](catsStdInstancesForOption)
+
+    Functor[EitherT[Option, String, ?]]
+    Applicative[EitherT[Option, String, ?]]
+    Monad[EitherT[Option, String, ?]]
+
+    checkAll("EitherT[Option, String, String]", MonadErrorTests[EitherT[Option, String, ?], Unit].monadError[String, String, String])
+    checkAll("MonadError[EitherT[Option, ?, ?]]", SerializableTests.serializable(MonadError[EitherT[Option, String, ?], Unit]))
   }
 
   {
@@ -119,6 +139,24 @@ class EitherTTests extends CatsSuite {
     }
   }
 
+  test("toNested") {
+    forAll { (eithert: EitherT[List, String, Int]) =>
+      eithert.toNested.value should === (eithert.value)
+    }
+  }
+
+  test("toNestedValidated") {
+    forAll { (eithert: EitherT[List, String, Int]) =>
+      eithert.toNestedValidated.value should === (eithert.value.map(_.toValidated))
+    }
+  }
+
+  test("toNestedValidatedNel") {
+    forAll { (eithert: EitherT[List, String, Int]) =>
+      eithert.toNestedValidatedNel.value should === (eithert.value.map(_.toValidatedNel))
+    }
+  }
+
   test("withValidated") {
     forAll { (eithert: EitherT[List, String, Int], f: String => Char, g: Int => Double) =>
       eithert.withValidated(_.bimap(f, g)) should === (eithert.bimap(f, g))
@@ -134,6 +172,12 @@ class EitherTTests extends CatsSuite {
   test("fromOption isLeft consistent with Option.isEmpty") {
     forAll { (o: Option[Int], s: String) =>
       EitherT.fromOption[Id](o, s).isLeft should === (o.isEmpty)
+    }
+  }
+
+  test("cond") {
+    forAll { (cond: Boolean, s: String, i: Int) =>
+      Either.cond(cond, s, i) should === (EitherT.cond[Id](cond, s, i).value)
     }
   }
 
@@ -168,33 +212,28 @@ class EitherTTests extends CatsSuite {
   }
 
   test("recover recovers handled values") {
-    val eithert = EitherT.left[Id, String, Int]("eithert")
+    val eithert = EitherT.leftT[Id, Int]("eithert")
     eithert.recover { case "eithert" => 5 }.isRight should === (true)
   }
 
   test("recover ignores unhandled values") {
-    val eithert = EitherT.left[Id, String, Int]("eithert")
+    val eithert = EitherT.leftT[Id, Int]("eithert")
     eithert.recover { case "noteithert" => 5 } should === (eithert)
   }
 
   test("recover ignores the right side") {
-    val eithert = EitherT.right[Id, String, Int](10)
+    val eithert = EitherT.pure[Id, String](10)
     eithert.recover { case "eithert" => 5 } should === (eithert)
   }
 
   test("recoverWith recovers handled values") {
-    val eithert = EitherT.left[Id, String, Int]("eithert")
-    eithert.recoverWith { case "eithert" => EitherT.right[Id, String, Int](5) }.isRight should === (true)
+    val eithert = EitherT.leftT[Id, Int]("eithert")
+    eithert.recoverWith { case "eithert" => EitherT.pure[Id, String](5) }.isRight should === (true)
   }
 
   test("recoverWith ignores unhandled values") {
-    val eithert = EitherT.left[Id, String, Int]("eithert")
-    eithert.recoverWith { case "noteithert" => EitherT.right[Id, String, Int](5) } should === (eithert)
-  }
-
-  test("recoverWith ignores the right side") {
-    val eithert = EitherT.right[Id, String, Int](10)
-    eithert.recoverWith { case "eithert" => EitherT.right[Id, String, Int](5) } should === (eithert)
+    val eithert = EitherT.leftT[Id, Int]("eithert")
+    eithert.recoverWith { case "noteithert" => EitherT.pure[Id, String](5) } should === (eithert)
   }
 
   test("transform consistent with value.map") {
@@ -215,6 +254,12 @@ class EitherTTests extends CatsSuite {
   test("subflatMap consistent with value.map+flatMap") {
     forAll { (eithert: EitherT[List, String, Int], f: Int => Either[String, Double]) =>
       eithert.subflatMap(f) should === (EitherT(eithert.value.map(_.flatMap(f))))
+    }
+  }
+
+  test("flatMap and flatMapF consistent") {
+    forAll { (eithert: EitherT[List, String, Int], f: Int => EitherT[List, String, Int])  =>
+      eithert.flatMap(f) should === (eithert.flatMapF(f(_).value))
     }
   }
 
@@ -306,6 +351,18 @@ class EitherTTests extends CatsSuite {
     }
   }
 
+  test("collectRight with Option consistent with flattening a to[Option]") {
+    forAll { (et: EitherT[Option, String, Int]) =>
+      et.collectRight should === (et.to[Option].flatten)
+    }
+  }
+
+  test("applyAlt with Id consistent with EitherT map") {
+    forAll { (et: EitherT[Id, String, Int], f: Int => String) =>
+      et.applyAlt(EitherT.pure(f)) should === (et.map(f))
+    }
+  }
+
   test("merge with Id consistent with Either merge") {
     forAll { (x: EitherT[Id, Int, Int]) =>
       x.merge should === (x.value.merge)
@@ -343,8 +400,38 @@ class EitherTTests extends CatsSuite {
   test("ensure should fail if predicate not satisfied") {
     forAll { (x: EitherT[Id, String, Int], s: String, p: Int => Boolean) =>
       if (x.isRight && !p(x getOrElse 0)) {
-        x.ensure(s)(p) should === (EitherT.left[Id, String, Int](s))
+        x.ensure(s)(p) should === (EitherT.leftT[Id, Int](s))
       }
     }
   }
+
+  test("inference works in for-comprehension") {
+    sealed abstract class AppError
+    case object Error1 extends AppError
+    case object Error2 extends AppError
+
+    val either1: Id[Either[Error1.type , String]] = Right("hi").pure[Id]
+    val either2: Id[Either[Error2.type , String]] = Right("bye").pure[Id]
+
+    for {
+      s1 <- EitherT(either1)
+      s2 <- EitherT[Id, AppError, String](either2)
+    } yield s1 ++ s2
+
+    for {
+      s1 <- EitherT(either1)
+      s2 <- EitherT.right[AppError]("1".pure[Id])
+    } yield s1 ++ s2
+
+    for {
+      s1 <- EitherT(either1)
+      s2 <- EitherT.left[String](Error1.pure[Id])
+    } yield s1 ++ s2
+
+    for {
+      s1 <- EitherT(either1)
+      s2 <- EitherT.pure[Id, AppError]("1")
+    } yield s1 ++ s2
+  }
+
 }

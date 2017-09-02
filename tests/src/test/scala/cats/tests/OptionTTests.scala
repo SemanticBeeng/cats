@@ -1,13 +1,13 @@
 package cats
 package tests
 
-import cats.data.{EitherT, OptionT}
+import cats.data.OptionT
 import cats.kernel.laws.{GroupLaws, OrderLaws}
 import cats.laws.discipline._
 import cats.laws.discipline.arbitrary._
 
 class OptionTTests extends CatsSuite {
-  implicit val iso = CartesianTests.Isomorphisms.invariant[OptionT[ListWrapper, ?]](OptionT.catsDataFunctorFilterForOptionT(ListWrapper.functor))
+  implicit val iso = CartesianTests.Isomorphisms.invariant[OptionT[ListWrapper, ?]](OptionT.catsDataFunctorForOptionT(ListWrapper.functor))
 
   {
     implicit val F = ListWrapper.eqv[Option[Int]]
@@ -39,8 +39,8 @@ class OptionTTests extends CatsSuite {
     // F has a Functor
     implicit val F = ListWrapper.functor
 
-    checkAll("OptionT[ListWrapper, Int]", FunctorFilterTests[OptionT[ListWrapper, ?]].functorFilter[Int, Int, Int])
-    checkAll("FunctorFilter[OptionT[ListWrapper, ?]]", SerializableTests.serializable(FunctorFilter[OptionT[ListWrapper, ?]]))
+    checkAll("OptionT[ListWrapper, Int]", FunctorTests[OptionT[ListWrapper, ?]].functor[Int, Int, Int])
+    checkAll("Functor[OptionT[ListWrapper, ?]]", SerializableTests.serializable(Functor[OptionT[ListWrapper, ?]]))
   }
 
   {
@@ -58,6 +58,7 @@ class OptionTTests extends CatsSuite {
     checkAll("OptionT[ListWrapper, Int]", MonoidKTests[OptionT[ListWrapper, ?]].monoidK[Int])
     checkAll("MonoidK[OptionT[ListWrapper, ?]]", SerializableTests.serializable(MonoidK[OptionT[ListWrapper, ?]]))
 
+    Monad[OptionT[ListWrapper, ?]]
     FlatMap[OptionT[ListWrapper, ?]]
     Applicative[OptionT[ListWrapper, ?]]
     Apply[OptionT[ListWrapper, ?]]
@@ -72,19 +73,6 @@ class OptionTTests extends CatsSuite {
 
     implicit val monadError = OptionT.catsDataMonadErrorForOptionT[SEither, String]
 
-    import org.scalacheck.Arbitrary
-    implicit val arb1 = implicitly[Arbitrary[OptionT[SEither, Int]]]
-    implicit val arb2 = implicitly[Arbitrary[OptionT[SEither, Int => Int]]]
-
-    implicit val eq0 = OptionT.catsDataEqForOptionT[SEither, Option[Int]]
-    implicit val eq1 = OptionT.catsDataEqForOptionT[SEither, Int]
-    implicit val eq2 = OptionT.catsDataEqForOptionT[SEither, Unit]
-    implicit val eq3 = OptionT.catsDataEqForOptionT[SEither, SEither[Unit]]
-    implicit val eq4 = OptionT.catsDataEqForOptionT[SEither, SEither[Int]]
-    implicit val eq5 = EitherT.catsDataEqForEitherT[OptionT[SEither, ?], String, Int]
-    implicit val eq6 = OptionT.catsDataEqForOptionT[SEither, (Int, Int, Int)]
-
-    implicit val iso = CartesianTests.Isomorphisms.invariant[OptionT[SEither, ?]]
 
     checkAll("OptionT[Either[String, ?], Int]", MonadErrorTests[OptionT[SEither, ?], String].monadError[Int, Int, Int])
     checkAll("MonadError[OptionT[Either[String, ?], ?]]", SerializableTests.serializable(monadError))
@@ -108,8 +96,8 @@ class OptionTTests extends CatsSuite {
     // F has a Traverse
     implicit val F = ListWrapper.traverse
 
-    checkAll("OptionT[ListWrapper, Int] with Option", TraverseFilterTests[OptionT[ListWrapper, ?]].traverseFilter[Int, Int, Int, Int, Option, Option])
-    checkAll("TraverseFilter[OptionT[ListWrapper, ?]]", SerializableTests.serializable(TraverseFilter[OptionT[ListWrapper, ?]]))
+    checkAll("OptionT[ListWrapper, Int] with Option", TraverseTests[OptionT[ListWrapper, ?]].traverse[Int, Int, Int, Int, Option, Option])
+    checkAll("Traverse[OptionT[ListWrapper, ?]]", SerializableTests.serializable(Traverse[OptionT[ListWrapper, ?]]))
 
     Foldable[OptionT[ListWrapper, ?]]
     Functor[OptionT[ListWrapper, ?]]
@@ -291,6 +279,11 @@ class OptionTTests extends CatsSuite {
     }
   }
 
+  test("mapFilter consistent with subflatMap") {
+    forAll { (o: OptionT[List, Int], f: Int => Option[String]) =>
+      o.mapFilter(f) should === (o.subflatMap(f))
+    }
+  }
 
   /**
    * Testing that implicit resolution works. If it compiles, the "test" passes.
