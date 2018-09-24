@@ -18,6 +18,21 @@ sealed abstract class Free[S[_], A] extends Product with Serializable {
     flatMap(a => Pure(f(a)))
 
   /**
+   * Modify the functor context `S` using transformation `f`.
+   *
+   * This is effectively compiling your free monad into another
+   * language by changing the suspension functor using the given
+   * natural transformation `f`.
+   *
+   * If your natural transformation is effectful, be careful. These
+   * effects will be applied by `mapK`.
+   */
+  final def mapK[T[_]](f: S ~> T): Free[T, A] =
+    foldMap[Free[T, ?]] { // this is safe because Free is stack safe
+      λ[FunctionK[S, Free[T, ?]]](fa => Suspend(f(fa)))
+    }(Free.catsFreeMonadForFree)
+
+  /**
    * Bind the given continuation to the result of this computation.
    * All left-associated binds are reassociated to the right.
    */
@@ -147,11 +162,8 @@ sealed abstract class Free[S[_], A] extends Product with Serializable {
    *
    * If your natural transformation is effectful, be careful. These
    * effects will be applied by `compile`.
-   */
-  final def compile[T[_]](f: FunctionK[S, T]): Free[T, A] =
-    foldMap[Free[T, ?]] { // this is safe because Free is stack safe
-      λ[FunctionK[S, Free[T, ?]]](fa => Suspend(f(fa)))
-    }(Free.catsFreeMonadForFree)
+    */
+  final def compile[T[_]](f: FunctionK[S, T]): Free[T, A] = mapK(f)
 
   /**
    * Lift into `G` (typically a `EitherK`) given `InjectK`. Analogous
@@ -169,7 +181,7 @@ sealed abstract class Free[S[_], A] extends Product with Serializable {
    *}}}
    */
   final def inject[G[_]](implicit ev: InjectK[S, G]): Free[G, A] =
-    compile(λ[S ~> G](ev.inj(_)))
+    mapK(λ[S ~> G](ev.inj(_)))
 
   override def toString: String =
     "Free(...)"
@@ -218,10 +230,16 @@ object Free extends FreeInstances {
     pure(()).flatMap(_ => value)
 
   /**
+   * a FunctionK, suitable for composition, which calls mapK
+   */
+  def mapK[F[_], G[_]](fk: FunctionK[F, G]): FunctionK[Free[F, ?], Free[G, ?]] =
+    λ[FunctionK[Free[F, ?], Free[G, ?]]](f => f.mapK(fk))
+
+  /**
    * a FunctionK, suitable for composition, which calls compile
    */
   def compile[F[_], G[_]](fk: FunctionK[F, G]): FunctionK[Free[F, ?], Free[G, ?]] =
-    λ[FunctionK[Free[F, ?], Free[G, ?]]](f => f.compile(fk))
+    mapK(fk)
 
   /**
    * a FunctionK, suitable for composition, which calls foldMap
@@ -237,6 +255,7 @@ object Free extends FreeInstances {
    * This method exists to allow the `F` and `G` parameters to be
    * bound independently of the `A` parameter below.
    */
+  // TODO to be deprecated / removed in cats 2.0
   def inject[F[_], G[_]]: FreeInjectKPartiallyApplied[F, G] =
     new FreeInjectKPartiallyApplied
 
@@ -248,21 +267,34 @@ object Free extends FreeInstances {
       Free.liftF(I.inj(fa))
   }
 
+  /**
+    * This method is used to defer the application of an InjectK[F, G]
+    * instance. The actual work happens in
+    * `FreeLiftInjectKPartiallyApplied#apply`.
+    *
+    * This method exists to allow the `G` parameter to be
+    * bound independently of the `F` and `A` parameters below.
+    */
+  def liftInject[G[_]]: FreeLiftInjectKPartiallyApplied[G] =
+    new FreeLiftInjectKPartiallyApplied
+
+  /**
+    * Uses the [[http://typelevel.org/cats/guidelines.html#partially-applied-type-params Partially Applied Type Params technique]] for ergonomics.
+    */
+  private[free] final class FreeLiftInjectKPartiallyApplied[G[_]](val dummy: Boolean = true ) extends AnyVal {
+    def apply[F[_], A](fa: F[A])(implicit I: InjectK[F, G]): Free[G, A] =
+      Free.liftF(I.inj(fa))
+  }
+
   def injectRoll[F[_], G[_], A](ga: G[Free[F, A]])(implicit I: InjectK[G, F]): Free[F, A] =
     Free.roll(I.inj(ga))
 
   def match_[F[_], G[_], A](fa: Free[F, A])(implicit F: Functor[F], I: InjectK[G, F]): Option[G[Free[F, A]]] =
     fa.resume.fold(I.prj(_), _ => None)
 
-  /**
-   * `Free[S, ?]` has a monad for any type constructor `S[_]`.
-   */
-  implicit def catsFreeMonadForFree[S[_]]: Monad[Free[S, ?]] =
-    new Monad[Free[S, ?]] with StackSafeMonad[Free[S, ?]] {
-      def pure[A](a: A): Free[S, A] = Free.pure(a)
-      override def map[A, B](fa: Free[S, A])(f: A => B): Free[S, B] = fa.map(f)
-      def flatMap[A, B](a: Free[S, A])(f: A => Free[S, B]): Free[S, B] = a.flatMap(f)
-    }
+  implicit def catsFreeMonadForId: Monad[Free[Id, ?]] = catsFreeMonadForFree[Id]
+
+  implicit def catsFreeDeferForId: Defer[Free[Id, ?]] = catsFreeDeferForFree[Id]
 }
 
 private trait FreeFoldable[F[_]] extends Foldable[Free[F, ?]] {
@@ -299,7 +331,26 @@ private trait FreeTraverse[F[_]] extends Traverse[Free[F, ?]] with FreeFoldable[
   override final def map[A, B](fa: Free[F, A])(f: A => B): Free[F, B] = fa.map(f)
 }
 
-sealed private[free] abstract class FreeInstances {
+sealed private[free] abstract class FreeInstances extends FreeInstances1 {
+
+  /**
+   * `Free[S, ?]` has a monad for any type constructor `S[_]`.
+   */
+  implicit def catsFreeMonadForFree[S[_]]: Monad[Free[S, ?]] =
+    new Monad[Free[S, ?]] with StackSafeMonad[Free[S, ?]] {
+      def pure[A](a: A): Free[S, A] = Free.pure(a)
+      override def map[A, B](fa: Free[S, A])(f: A => B): Free[S, B] = fa.map(f)
+      def flatMap[A, B](a: Free[S, A])(f: A => Free[S, B]): Free[S, B] = a.flatMap(f)
+    }
+
+  implicit def catsFreeDeferForFree[S[_]]: Defer[Free[S, ?]] =
+    new Defer[Free[S, ?]] {
+      def defer[A](fa: => Free[S, A]): Free[S, A] =
+        Free.defer(fa)
+    }
+}
+
+sealed private[free] abstract class FreeInstances1 {
 
   implicit def catsFreeFoldableForFree[F[_]](
     implicit

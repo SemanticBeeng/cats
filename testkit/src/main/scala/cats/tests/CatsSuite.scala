@@ -2,11 +2,9 @@ package cats
 package tests
 
 import catalysts.Platform
-
-import cats.instances.AllInstances
-import cats.syntax.{AllSyntax, EqOps}
-
-import org.scalactic.anyvals.{PosZDouble, PosInt, PosZInt}
+import cats.instances.{AllInstances, AllInstancesBinCompat0, AllInstancesBinCompat1}
+import cats.syntax.{AllSyntax, AllSyntaxBinCompat0, AllSyntaxBinCompat1, AllSyntaxBinCompat2, EqOps}
+import org.scalactic.anyvals.{PosInt, PosZDouble, PosZInt}
 import org.scalatest.{FunSuite, FunSuiteLike, Matchers}
 import org.scalatest.prop.{Configuration, GeneratorDrivenPropertyChecks}
 import org.typelevel.discipline.scalatest.Discipline
@@ -35,8 +33,9 @@ trait CatsSuite extends FunSuite
     with GeneratorDrivenPropertyChecks
     with Discipline
     with TestSettings
-    with AllInstances
-    with AllSyntax
+    with AllInstances with AllInstancesBinCompat0 with AllInstancesBinCompat1
+    with AllSyntax with AllSyntaxBinCompat0 with AllSyntaxBinCompat1
+    with AllSyntaxBinCompat2
     with StrictCatsEquality { self: FunSuiteLike =>
 
   implicit override val generatorDrivenConfig: PropertyCheckConfiguration =

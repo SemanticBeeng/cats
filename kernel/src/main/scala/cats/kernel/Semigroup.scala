@@ -1,15 +1,14 @@
 package cats.kernel
 
 import scala.{ specialized => sp }
-import scala.annotation.{ tailrec }
-
+import scala.annotation.tailrec
 /**
  * A semigroup is any set `A` with an associative operation (`combine`).
  */
 trait Semigroup[@sp(Int, Long, Float, Double) A] extends Any with Serializable {
 
   /**
-   * Associative operation taking which combines two values.
+   * Associative operation which combines two values.
    */
   def combine(x: A, y: A): A
 
@@ -38,7 +37,7 @@ trait Semigroup[@sp(Int, Long, Float, Double) A] extends Any with Serializable {
    * If the sequence is empty, returns None. Otherwise, returns Some(total).
    */
   def combineAllOption(as: TraversableOnce[A]): Option[A] =
-    as.reduceOption(combine)
+    cats.kernel.compat.TraversableOnce.reduceOption(as, combine)
 }
 
 abstract class SemigroupFunctions[S[T] <: Semigroup[T]] {
@@ -76,4 +75,11 @@ object Semigroup extends SemigroupFunctions[Semigroup] {
    * Access an implicit `Semigroup[A]`.
    */
   @inline final def apply[A](implicit ev: Semigroup[A]): Semigroup[A] = ev
+
+  /**
+   * Create a `Semigroup` instance from the given function.
+   */
+  @inline def instance[A](cmb: (A, A) => A): Semigroup[A] = new Semigroup[A] {
+    override def combine(x: A, y: A): A = cmb(x, y)
+  }
 }

@@ -2,7 +2,7 @@
 val V = _root_.scalafix.Versions
 scalaVersion in ThisBuild := V.scala212
 
-lazy val rewrites = project.settings(
+lazy val rules = project.settings(
   libraryDependencies += "ch.epfl.scala" %% "scalafix-core" % V.version
 )
 
@@ -16,8 +16,8 @@ lazy val input = project.settings(
 
 lazy val output = project.settings(
   libraryDependencies ++= Seq(
-    "org.typelevel" %% "cats-core" % "1.0.0-MF",
-    "org.typelevel" %% "cats-free" % "1.0.0-MF"
+    "org.typelevel" %% "cats-core" % "1.0.0",
+    "org.typelevel" %% "cats-free" % "1.0.0"
   ),
   scalacOptions += "-language:higherKinds"
 )
@@ -35,5 +35,5 @@ lazy val tests = project
         classDirectory.in(input, Compile).value
     )
   )
-  .dependsOn(input, rewrites)
+  .dependsOn(input, rules)
   .enablePlugins(BuildInfoPlugin)

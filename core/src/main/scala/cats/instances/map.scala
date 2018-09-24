@@ -1,7 +1,10 @@
 package cats
 package instances
 
+import cats.kernel.CommutativeMonoid
+
 import scala.annotation.tailrec
+import cats.arrow.Compose
 
 trait MapInstances extends cats.kernel.instances.MapInstances {
 
@@ -14,12 +17,12 @@ trait MapInstances extends cats.kernel.instances.MapInstances {
     }
 
   // scalastyle:off method.length
-  implicit def catsStdInstancesForMap[K]: Traverse[Map[K, ?]] with FlatMap[Map[K, ?]] =
-    new Traverse[Map[K, ?]] with FlatMap[Map[K, ?]] {
+  implicit def catsStdInstancesForMap[K]: UnorderedTraverse[Map[K, ?]] with FlatMap[Map[K, ?]] =
+    new UnorderedTraverse[Map[K, ?]] with FlatMap[Map[K, ?]] {
 
-      def traverse[G[_], A, B](fa: Map[K, A])(f: A => G[B])(implicit G: Applicative[G]): G[Map[K, B]] = {
+      def unorderedTraverse[G[_], A, B](fa: Map[K, A])(f: A => G[B])(implicit G: CommutativeApplicative[G]): G[Map[K, B]] = {
         val gba: Eval[G[Map[K, B]]] = Always(G.pure(Map.empty))
-        val gbb = Foldable.iterateRight(fa.iterator, gba){ (kv, lbuf) =>
+        val gbb = Foldable.iterateRight(fa, gba){ (kv, lbuf) =>
           G.map2Eval(f(kv._2), lbuf)({ (b, buf) => buf + (kv._1 -> b)})
         }.value
         G.map(gbb)(_.toMap)
@@ -47,11 +50,8 @@ trait MapInstances extends cats.kernel.instances.MapInstances {
       def flatMap[A, B](fa: Map[K, A])(f: (A) => Map[K, B]): Map[K, B] =
         fa.flatMap { case (k, a) => f(a).get(k).map((k, _)) }
 
-      def foldLeft[A, B](fa: Map[K, A], b: B)(f: (B, A) => B): B =
-        fa.foldLeft(b) { case (x, (k, a)) => f(x, a)}
-
-      def foldRight[A, B](fa: Map[K, A], lb: Eval[B])(f: (A, Eval[B]) => Eval[B]): Eval[B] =
-        Foldable.iterateRight(fa.values.iterator, lb)(f)
+      def unorderedFoldMap[A, B: CommutativeMonoid](fa: Map[K, A])(f: (A) => B) =
+        fa.foldLeft(Monoid[B].empty){ case (b, (k, a)) => Monoid[B].combine(b, f(a)) }
 
       def tailRecM[A, B](a: A)(f: A => Map[K, Either[A, B]]): Map[K, B] = {
         val bldr = Map.newBuilder[K, B]
@@ -72,22 +72,61 @@ trait MapInstances extends cats.kernel.instances.MapInstances {
         bldr.result
       }
 
-      override def size[A](fa: Map[K, A]): Long = fa.size.toLong
-
-      override def get[A](fa: Map[K, A])(idx: Long): Option[A] =
-        if (idx < 0L || Int.MaxValue < idx) None
-        else {
-          val n = idx.toInt
-          if (n >= fa.size) None
-          else Some(fa.valuesIterator.drop(n).next)
-        }
 
       override def isEmpty[A](fa: Map[K, A]): Boolean = fa.isEmpty
 
-      override def fold[A](fa: Map[K, A])(implicit A: Monoid[A]): A =
+      override def unorderedFold[A](fa: Map[K, A])(implicit A: CommutativeMonoid[A]): A =
         A.combineAll(fa.values)
 
-      override def toList[A](fa: Map[K, A]): List[A] = fa.values.toList
     }
   // scalastyle:on method.length
+
+}
+
+trait MapInstancesBinCompat0 {
+
+  implicit val catsStdComposeForMap: Compose[Map] = new Compose[Map] {
+
+    /**
+      * Compose two maps `g` and `f` by using the values in `f` as keys for `g`.
+      * {{{
+      * scala> import cats.arrow.Compose
+      * scala> import cats.implicits._
+      * scala> val first = Map(1 -> "a", 2 -> "b", 3 -> "c", 4 -> "a")
+      * scala> val second = Map("a" -> true, "b" -> false, "d" -> true)
+      * scala> Compose[Map].compose(second, first)
+      * res0: Map[Int, Boolean] = Map(1 -> true, 2 -> false, 4 -> true)
+      * }}}
+      */
+    def compose[A, B, C](f: Map[B, C], g: Map[A, B]): Map[A, C] = {
+      g.foldLeft(Map.empty[A, C]) {
+        case (acc, (key, value)) =>
+          f.get(value) match {
+            case Some(other) => acc + (key -> other)
+            case _ => acc
+          }
+      }
+    }
+  }
+
+  implicit def catsStdFunctorFilterForMap[K]: FunctorFilter[Map[K, ?]] = {
+    new FunctorFilter[Map[K, ?]] {
+
+      val functor: Functor[Map[K, ?]] = cats.instances.map.catsStdInstancesForMap[K]
+
+      def mapFilter[A, B](fa: Map[K, A])(f: A => Option[B]) =
+        fa.collect(scala.Function.unlift(t => f(t._2).map(t._1 -> _)))
+
+      override def collect[A, B](fa: Map[K, A])(f: PartialFunction[A, B]) =
+        fa.collect(scala.Function.unlift(t => f.lift(t._2).map(t._1 -> _)))
+
+      override def flattenOption[A](fa: Map[K, Option[A]]) =
+        fa.collect(scala.Function.unlift(t => t._2.map(t._1 -> _)))
+
+      override def filter[A](fa: Map[K, A])(f: A => Boolean) =
+        fa.filter { case (_, v) => f(v) }
+
+    }
+  }
+
 }

@@ -1,9 +1,7 @@
 package cats
 package tests
 
-import cats.functor.Invariant
 import cats.instances.list._
-
 import org.scalacheck.{Arbitrary, Cogen}
 import org.scalacheck.Arbitrary.arbitrary
 
@@ -38,11 +36,11 @@ import org.scalacheck.Arbitrary.arbitrary
 final case class ListWrapper[A](list: List[A]) extends AnyVal
 
 object ListWrapper {
-  def order[A:Order]: Order[ListWrapper[A]] = Order[List[A]].on[ListWrapper[A]](_.list)
+  def order[A:Order]: Order[ListWrapper[A]] = Order.by(_.list)
 
-  def partialOrder[A:PartialOrder]: PartialOrder[ListWrapper[A]] = PartialOrder[List[A]].on[ListWrapper[A]](_.list)
+  def partialOrder[A:PartialOrder]: PartialOrder[ListWrapper[A]] = PartialOrder.by(_.list)
 
-  def eqv[A : Eq]: Eq[ListWrapper[A]] = Eq[List[A]].on[ListWrapper[A]](_.list)
+  def eqv[A : Eq]: Eq[ListWrapper[A]] = Eq.by(_.list)
 
   val traverse: Traverse[ListWrapper] = {
     val F = Traverse[List]
@@ -58,11 +56,39 @@ object ListWrapper {
     }
   }
 
+  val traverseFilter: TraverseFilter[ListWrapper] = {
+    val F = TraverseFilter[List]
+
+    new TraverseFilter[ListWrapper] {
+      def traverse = ListWrapper.traverse
+      def traverseFilter[G[_], A, B](fa: ListWrapper[A])(f: A => G[Option[B]])(implicit G: Applicative[G]): G[ListWrapper[B]] =
+        G.map(F.traverseFilter(fa.list)(f))(ListWrapper.apply)
+    }
+  }
+
+  val functorFilter: FunctorFilter[ListWrapper] = {
+    val F = FunctorFilter[List]
+
+    new FunctorFilter[ListWrapper] {
+      def functor = ListWrapper.functor
+      def mapFilter[A, B](fa: ListWrapper[A])(f: A => Option[B]): ListWrapper[B] =
+        ListWrapper(F.mapFilter(fa.list)(f))
+    }
+  }
+
   val foldable: Foldable[ListWrapper] = traverse
 
   val functor: Functor[ListWrapper] = traverse
 
-  val invariant: Invariant[ListWrapper] = functor
+  val invariantSemigroupal: InvariantSemigroupal[ListWrapper] = new InvariantSemigroupal[ListWrapper] {
+    def product[A, B](fa: ListWrapper[A], fb: ListWrapper[B]): ListWrapper[(A, B)] =
+      ListWrapper(fa.list.flatMap(a => fb.list.map(b => (a, b))))
+
+    def imap[A, B](fa: ListWrapper[A])(f: A => B)(g: B => A) =
+      ListWrapper(fa.list.map(f))
+  }
+
+  val invariant: Invariant[ListWrapper] = invariantSemigroupal
 
   val semigroupK: SemigroupK[ListWrapper] =
     new SemigroupK[ListWrapper] {

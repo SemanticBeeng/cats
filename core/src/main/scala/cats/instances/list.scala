@@ -65,6 +65,9 @@ trait ListInstances extends cats.kernel.instances.ListInstances {
         Eval.defer(loop(fa))
       }
 
+      override def foldMap[A, B](fa: List[A])(f: A => B)(implicit B: Monoid[B]): B =
+        B.combineAll(fa.iterator.map(f))
+
       def traverse[G[_], A, B](fa: List[A])(f: A => G[B])(implicit G: Applicative[G]): G[List[B]] =
         foldRight[A, G[List[B]]](fa, Always(G.pure(List.empty))){ (a, lglb) =>
           G.map2Eval(f(a), lglb)(_ :: _)
@@ -75,6 +78,14 @@ trait ListInstances extends cats.kernel.instances.ListInstances {
 
       override def zipWithIndex[A](fa: List[A]): List[(A, Int)] =
         fa.zipWithIndex
+
+      override def partitionEither[A, B, C](fa: List[A])
+                                           (f: (A) => Either[B, C])
+                                           (implicit A: Alternative[List]): (List[B], List[C]) =
+        fa.foldRight((List.empty[B], List.empty[C]))((a, acc) => f(a) match {
+          case Left(b) => (b :: acc._1, acc._2)
+          case Right(c) => (acc._1, c :: acc._2)
+        })
 
       @tailrec
       override def get[A](fa: List[A])(idx: Long): Option[A] =
@@ -119,6 +130,11 @@ trait ListInstances extends cats.kernel.instances.ListInstances {
       override def dropWhile_[A](fa: List[A])(p: A => Boolean): List[A] = fa.dropWhile(p)
 
       override def algebra[A]: Monoid[List[A]] = new kernel.instances.ListMonoid[A]
+
+      override def collectFirst[A, B](fa: List[A])(pf: PartialFunction[A, B]): Option[B] = fa.collectFirst(pf)
+
+      override def collectFirstSome[A, B](fa: List[A])(f: A => Option[B]): Option[B] = fa.collectFirst(Function.unlift(f))
+
     }
 
   implicit def catsStdShowForList[A:Show]: Show[List[A]] =
@@ -126,4 +142,30 @@ trait ListInstances extends cats.kernel.instances.ListInstances {
       def show(fa: List[A]): String =
         fa.iterator.map(_.show).mkString("List(", ", ", ")")
     }
+}
+
+trait ListInstancesBinCompat0 {
+  implicit val catsStdTraverseFilterForList: TraverseFilter[List] = new TraverseFilter[List] {
+    val traverse: Traverse[List] = cats.instances.list.catsStdInstancesForList
+
+    override def mapFilter[A, B](fa: List[A])(f: (A) => Option[B]): List[B] = fa.collect(Function.unlift(f))
+
+    override def filter[A](fa: List[A])(f: (A) => Boolean): List[A] = fa.filter(f)
+
+    override def collect[A, B](fa: List[A])(f: PartialFunction[A, B]): List[B] = fa.collect(f)
+
+    override def flattenOption[A](fa: List[Option[A]]): List[A] = fa.flatten
+
+    def traverseFilter[G[_], A, B](fa: List[A])(f: (A) => G[Option[B]])(implicit G: Applicative[G]): G[List[B]] =
+      fa.foldRight(Eval.now(G.pure(List.empty[B])))(
+        (x, xse) =>
+          G.map2Eval(f(x), xse)((i, o) => i.fold(o)(_ :: o))
+      ).value
+
+    override def filterA[G[_], A](fa: List[A])(f: (A) => G[Boolean])(implicit G: Applicative[G]): G[List[A]] =
+      fa.foldRight(Eval.now(G.pure(List.empty[A])))(
+        (x, xse) =>
+          G.map2Eval(f(x), xse)((b, list) => if (b) x :: list else list)
+      ).value
+  }
 }

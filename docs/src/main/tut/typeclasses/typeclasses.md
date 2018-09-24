@@ -221,6 +221,8 @@ val result = Monoid[Int].combine(sumLeft, sumRight)
 Cats provides laws for type classes via the `kernel-laws` and `laws` modules which makes law checking
 type class instances easy.
 
+You can find out more about law testing [here](typeclasses/lawtesting.html).
+
 ## Type classes in cats
 
 <img src="https://cdn.rawgit.com/tpolecat/cats-infographic/master/cats.svg" alt="infographic" style="width: 100%;"/>
@@ -236,7 +238,7 @@ Originally from [@alexknvl](https://gist.github.com/alexknvl/d63508ddb6a728015ac
 | --------------- |:-------:|:-----------------:|:-----------:|:-----:|:-------:|:-----------------:|:----------:|:---------:|:-------:|
 | Id[A]           | ✔       | ✔                 | ✔           | ✔     | ✗       | ✗                 | ✗          | ✔         | ✔       |
 | Eval[A]         | ✔       | ✔                 | ✔           | ✔     | ✗       | ✗                 | ✗          | ✔         | ✔       |
-| Option[A]       | ✔       | ✔                 | ✔           | ✔     | ✔       | ✗                 | ✗          | ✔         | ✗       |
+| Option[A]       | ✔       | ✔                 | ✔           | ✔     | ✔       | ✔                 | ✔          | ✔         | ✗       |
 | Const[K, A]     | ✔       | ✔ (`K:Monoid`)    | ✔           | ✗     | ✗       | ✗                 | ✗          | ✗         | ✗       |
 | Either[E, A]    | ✔       | ✔                 | ✔           | ✔     | ✔       | ✔                 | ✔          | ✗         | ✗       |
 | List[A]         | ✔       | ✔                 | ✔           | ✔     | ✔       | ✗                 | ✗          | ✔         | ✗       |

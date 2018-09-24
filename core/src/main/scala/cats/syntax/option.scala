@@ -1,7 +1,8 @@
 package cats
 package syntax
 
-import cats.data.{Ior, Validated, ValidatedNel}
+import cats.data.{Ior, OptionT, Validated, ValidatedNel}
+import cats.syntax.OptionOps.LiftToPartiallyApplied
 
 trait OptionSyntax {
   final def none[A]: Option[A] = Option.empty[A]
@@ -170,4 +171,38 @@ final class OptionOps[A](val oa: Option[A]) extends AnyVal {
    * }}}
    */
   def orEmpty(implicit A: Monoid[A]): A = oa.getOrElse(A.empty)
+
+  /**
+    * Lift to a F[A] as long as it has an ApplicativeError[F] instance
+    *
+    * Example:
+    * {{{
+    * scala> import cats.implicits._
+    * scala> Some(1).liftTo[Either[CharSequence, ?]]("Empty")
+    * res0: scala.Either[CharSequence, Int] = Right(1)
+    *
+    * scala> Option.empty[Int].liftTo[Either[CharSequence, ?]]("Empty")
+    * res1: scala.Either[CharSequence, Int] = Left(Empty)
+    * }}}
+    */
+  def liftTo[F[_]]: LiftToPartiallyApplied[F, A] = new LiftToPartiallyApplied(oa)
+
+  /**
+    * Transform the `Option` into a [[cats.data.OptionT]] while lifting it into the specified Applicative.
+    *
+    * {{{
+    * scala> import cats.implicits._
+    * scala> val op: Option[Int] = Some(3)
+    * scala> op.toOptionT[List]
+    * res0: cats.data.OptionT[List, Int] = OptionT(List(Some(3)))
+    * }}}
+    */
+  def toOptionT[F[_]: Applicative]: OptionT[F, A] = OptionT.fromOption(oa)
+}
+
+object OptionOps {
+  private[syntax] final class LiftToPartiallyApplied[F[_], A](oa: Option[A]) {
+    def apply[E](ifEmpty: => E)(implicit F: ApplicativeError[F, _ >: E]): F[A] =
+      ApplicativeError.liftFromOption(oa, ifEmpty)
+  }
 }
