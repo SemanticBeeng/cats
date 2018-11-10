@@ -63,6 +63,7 @@ functionality, you can pick-and-choose from amongst these modules
  * [`mouse`](https://github.com/typelevel/mouse): a small companion to Cats that provides convenient syntax (aka extension methods) 
  * [`kittens`](https://github.com/typelevel/kittens): automatic type class instance derivation for Cats and generic utility functions
  * [`cats-tagless`](https://github.com/typelevel/cats-tagless): Utilities for tagless final encoded algebras
+ * [`cats-collections`](https://github.com/typelevel/cats-collections): Data structures which facilitate pure functional programming
 
 Release notes for Cats are available in [CHANGES.md](https://github.com/typelevel/cats/blob/master/CHANGES.md).
 
@@ -99,13 +100,16 @@ By sharing the same set of type classes, instances and data types provided by Ca
  * [cormorant](https://github.com/ChristopherDavenport/cormorant): CSV handling library for FP
  * [decline](https://github.com/bkirwi/decline): A composable command-line parser
  * [doobie](https://github.com/tpolecat/doobie): a pure functional JDBC layer for Scala
+ * [extruder](https://github.com/janstenpickle/extruder): Populate case classes from any data source
  * [fastparse-cats](https://github.com/johnynek/fastparse-cats): cats Monad and Alternative instances for [fastparse](https://github.com/lihaoyi/fastparse)
  * [Fetch](https://github.com/47deg/fetch): efficient data access to heterogeneous data sources
  * [finch](https://github.com/finagle/finch): Scala combinator library for building Finagle HTTP services
  * [Frameless](https://github.com/typelevel/frameless): Expressive types for Spark
  * [FS2](https://github.com/functional-streams-for-scala): compositional, streaming I/O library
  * [fuuid](https://github.com/ChristopherDavenport/fuuid): functional uuid's
+ * [github4s](https://github.com/47deg/github4s): wrapper around the GitHub API
  * [grafter](https://github.com/zalando/grafter): dependency-injection library using the `Reader` pattern
+ * [gsheets4s](https://github.com/benfradet/gsheets4s): wrapper around the Google Sheets API
  * [hammock](https://github.com/pepegar/hammock): Purely functional HTTP client
  * [henkan](https://github.com/kailuowang/henkan): Type safe conversion between case class instances with similar fields
  * [http4s](https://github.com/http4s/http4s): A minimal, idiomatic Scala interface for HTTP
@@ -115,14 +119,29 @@ By sharing the same set of type classes, instances and data types provided by Ca
  * [log4cats](https://github.com/ChristopherDavenport/log4cats): functional logging
  * [pureconfig](https://github.com/pureconfig/pureconfig): A boilerplate-free library for loading configuration files
  * [rainier](https://github.com/stripe/rainier): Bayesian inference in Scala
+ * [scala-forex](https://github.com/snowplow/scala-forex): exchange rate lookups
+ * [scala-maxmind-ip-lookups](https://github.com/snowplow/scala-maxmind-iplookups): IP geolocation through [the Maxmind database](https://www.maxmind.com/en/home)
+ * [scala-referer-parser](https://github.com/snowplow-referer-parser/scala-referer-parser): referer parsing
+ * [scala-weather](https://github.com/snowplow/scala-weather): weather lookups
  * [scanamo](https://github.com/guardian/scanamo): simpler DynamoDB access for Scala
  * [seals](https://github.com/durban/seals): tools for schema evolution and language-integrated schemata
- * [tsec](https://github.com/jmcardon/tsec/): Typesafe, functional, general purpose cryptography and security library.
- * [extruder](https://github.com/janstenpickle/extruder): Populate case classes from any data source
+ * [tsec](https://github.com/jmcardon/tsec/): Typesafe, functional, general purpose cryptography and security library
   
 Your project talks cats too? [Submit a PR to add it here!](https://github.com/typelevel/cats/edit/master/README.md)
 
-*The full-size [Cats logo](https://typelevel.org/cats/img/cats-logo.png) is available for use for Cats related projects, contents, souvenirs, etc.*  
+*The full-size [Cats logo](https://typelevel.org/cats/img/cats-logo.png) is available for use for Cats related projects, contents, souvenirs, etc.*
+
+*We offer a [Cats Friendly Badge](https://typelevel.org/cats/img/cats-badge.svg) to let others know your project works with Cats!*
+
+![Cats Friendly Badge](https://typelevel.org/cats/img/cats-badge-normal.png) 
+
+Below are quick html and markdown snippets to use the badge in your own project.
+```html
+<a href="https://typelevel.org/cats/"><img src="https://typelevel.org/cats/img/cats-badge-tiny.png" alt="Cats friendly" /></a>
+```
+```markdown
+![Cats Friendly Badge](https://typelevel.org/cats/img/cats-badge-tiny.png) 
+```
 
 ### How can I contribute to Cats?
 
@@ -192,9 +211,10 @@ versioning in the future. But that decision is yet to be made.
 
 Here's a (non-exhaustive) list of companies that use Cats in production. Don't see yours? [You can add it in a PR!](https://github.com/typelevel/cats/edit/master/README.md)
 
+- [Abacus Protocol](https://abacusprotocol.com)
 - [Anduin Transactions](https://anduintransact.com)
 - [Apple Inc. (FEAR team)](https://news.ycombinator.com/item?id=16969118)
-- [AutoScout24](https://www.autoscout24.com)
+- [AutoScout24](https://www.autoscout24.com) 
 - [Avast](https://avast.com)
 - [Banno Group inside of Jack Henry & Associates](https://banno.com/)
 - [Basefarm](https://basefarm.com/)
@@ -212,8 +232,10 @@ Here's a (non-exhaustive) list of companies that use Cats in production. Don't s
 - [e.near](http://enear.co)
 - [E.ON](https://eon.com)
 - [formation.ai](https://formation.ai)
+- [Free2Move](https://free2move.com)
 - [HomeAway](https://www.homeaway.com)
 - [iHeartRadio](https://iheart.com)
+- [ImmobilienScout24](https://www.immobilienscout24.de/)
 - [ITV](https://www.itv.com/)
 - [Lookout](https://www.lookout.com)
 - [Metacommerce](https://www.metacommerce.ru)
@@ -229,6 +251,7 @@ Here's a (non-exhaustive) list of companies that use Cats in production. Don't s
 - [Spotahome](https://spotahome.com)
 - [Spotify](https://www.spotify.com)
 - [SpringerNature](https://www.springernature.com)
+- [SRF](https://www.srf.ch)
 - [Stripe](https://stripe.com)
 - [Tecsisa](https://www.tecsisa.com)
 - [Teikametrics](http://teikametrics.com)
@@ -273,4 +296,4 @@ http://opensource.org/licenses/mit-license.php and also in the
 [COPYING](COPYING) file. The design is informed by many other
 projects, in particular [Scalaz](https://github.com/scalaz/scalaz).
 
-Copyright the maintainers, 2015-2017.
+Copyright the maintainers, 2015-2018.
