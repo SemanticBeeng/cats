@@ -12,9 +12,21 @@ final case class Kleisli[F[_], A, B](run: A => F[B]) { self =>
   def ap[C](f: Kleisli[F, A, B => C])(implicit F: Apply[F]): Kleisli[F, A, C] =
     Kleisli(a => F.ap(f.run(a))(run(a)))
 
+  /**
+   * Performs [[local]] and [[map]] simultaneously.
+   */
   def dimap[C, D](f: C => A)(g: B => D)(implicit F: Functor[F]): Kleisli[F, C, D] =
     Kleisli(c => F.map(run(f(c)))(g))
 
+  /**
+   * Modify the output of the Kleisli function with `f`.
+   * {{{
+   * scala> import cats.data.Kleisli, cats.implicits._
+   * scala> val takeHead = Kleisli[Option, List[Int], Int](_.headOption)
+   * scala> takeHead.map(_.toDouble).run(List(1))
+   * res0: Option[Double] = Some(1.0)
+   * }}}
+   */
   def map[C](f: B => C)(implicit F: Functor[F]): Kleisli[F, A, C] =
     Kleisli(a => F.map(run(a))(f))
 
@@ -33,9 +45,23 @@ final case class Kleisli[F[_], A, B](run: A => F[B]) { self =>
   def flatMapF[C](f: B => F[C])(implicit F: FlatMap[F]): Kleisli[F, A, C] =
     Kleisli.shift(a => F.flatMap(run(a))(f))
 
+  /**
+   * Composes [[run]] with a function `B => F[C]` not lifted into Kleisli.
+   */
   def andThen[C](f: B => F[C])(implicit F: FlatMap[F]): Kleisli[F, A, C] =
     Kleisli.shift(a => F.flatMap(run(a))(f))
 
+  /**
+   * Tip to tail Kleisli arrow composition.
+   * Creates a function `A => F[C]` from [[run]] (`A => F[B]`) and the given Kleisli of `B => F[C]`.
+   * {{{
+   * scala> import cats.data.Kleisli, cats.implicits._
+   * scala> val takeHead = Kleisli[Option, List[Int], Int](_.headOption)
+   * scala> val plusOne = Kleisli[Option, Int, Int](i => Some(i + 1))
+   * scala> (takeHead andThen plusOne).run(List(1))
+   * res0: Option[Int] = Some(2)
+   * }}}
+   */
   def andThen[C](k: Kleisli[F, B, C])(implicit F: FlatMap[F]): Kleisli[F, A, C] =
     this.andThen(k.run)
 
@@ -51,6 +77,16 @@ final case class Kleisli[F[_], A, B](run: A => F[B]) { self =>
   def lift[G[_]](implicit G: Applicative[G]): Kleisli[λ[α => G[F[α]]], A, B] =
     Kleisli[λ[α => G[F[α]]], A, B](a => Applicative[G].pure(run(a)))
 
+  /**
+   * Contramap the input using `f`, where `f` may modify the input type of the Kleisli arrow.
+   * {{{
+   * scala> import cats.data.Kleisli, cats.implicits._
+   * scala> type ParseResult[A] = Either[Throwable, A]
+   * scala> val parseInt = Kleisli[ParseResult, String, Int](s => Either.catchNonFatal(s.toInt))
+   * scala> parseInt.local[List[String]](_.combineAll).run(List("1", "2"))
+   * res0: ParseResult[Int] = Right(12)
+   * }}}
+   */
   def local[AA](f: AA => A): Kleisli[F, AA, B] =
     Kleisli(f.andThen(run))
 
@@ -83,7 +119,11 @@ final case class Kleisli[F[_], A, B](run: A => F[B]) { self =>
   def apply(a: A): F[B] = run(a)
 }
 
-object Kleisli extends KleisliInstances with KleisliFunctions with KleisliExplicitInstances {
+object Kleisli
+    extends KleisliInstances
+    with KleisliFunctions
+    with KleisliFunctionsBinCompat
+    with KleisliExplicitInstances {
 
   /**
    * Internal API — shifts the execution of `run` in the `F` context.
@@ -109,10 +149,47 @@ object Kleisli extends KleisliInstances with KleisliFunctions with KleisliExplic
       case _ =>
         Kleisli(run)
     }
+
+  /**
+   * Creates a `FunctionK` that transforms a `Kleisli[F, A, B]` into an `F[B]` by applying the value of type `a:A`.
+   * {{{
+   * scala> import cats.{~>}, cats.data.{Kleisli, EitherT}
+   *
+   * scala> def f(i: Int): Option[Either[Char, Char]] = if (i > 0) Some(Right('n')) else if (i < 0) Some(Left('z')) else None
+   *
+   * scala> type KOI[A] = Kleisli[Option, Int, A]
+   * scala> val b: KOI[Either[Char, Char]] = Kleisli[Option, Int, Either[Char, Char]](f _)
+   * scala> val nt: Kleisli[Option, Int, ?] ~> Option = Kleisli.applyK[Option, Int](1)
+   * scala> nt(b)
+   * res0: Option[Either[Char, Char]] = Some(Right('n'))
+   *
+   * scala> type EKOIC[A] = EitherT[KOI, Char, A]
+   * scala> val c: EKOIC[Char] = EitherT[KOI, Char, Char](b)
+   * scala> c.mapK(nt).value
+   * res1: Option[Either[Char, Char]] = Some(Right('n'))
+   *
+   * scala> val ntz = Kleisli.applyK[Option, Int](0)
+   * scala> c.mapK(ntz).value
+   * res2: Option[Either[Char, Char]] = None
+   * }}}
+   */
+  def applyK[F[_], A](a: A): Kleisli[F, A, ?] ~> F =
+    λ[Kleisli[F, A, ?] ~> F](_.apply(a))
+
 }
 
 sealed private[data] trait KleisliFunctions {
 
+  /**
+   * Creates a Kleisli that ignores its input `A` and returns the given `F[B]`.
+   * {{{
+   * scala> import cats.data.Kleisli, cats.implicits._
+   * scala> val takeHead = Kleisli((_:List[Int]).headOption)
+   * scala> val makeList = Kleisli.liftF[Option, Unit, List[Int]](Some(List(1,2,3)))
+   * scala> (makeList andThen takeHead).run(())
+   * res0: Option[Int] = Some(1)
+   * }}}
+   */
   def liftF[F[_], A, B](x: F[B]): Kleisli[F, A, B] =
     Kleisli(_ => x)
 
@@ -133,14 +210,65 @@ sealed private[data] trait KleisliFunctions {
   def lift[F[_], A, B](x: F[B]): Kleisli[F, A, B] =
     Kleisli(_ => x)
 
+  /**
+   * Creates a Kleisli arrow ignoring its input and lifting the given `B` into applicative context `F`.
+   * {{{
+   * scala> import cats.data.Kleisli, cats.implicits._
+   * scala> val pureOpt = Kleisli.pure[Option, Unit, String]("beam me up!")
+   * scala> pureOpt.run(())
+   * res0: Option[String] = Some(beam me up!)
+   * }}}
+   */
   def pure[F[_], A, B](x: B)(implicit F: Applicative[F]): Kleisli[F, A, B] =
     Kleisli(_ => F.pure(x))
 
+  /**
+   * Creates a Kleisli arrow which can lift an `A` into applicative context `F`.
+   * This is distinct from [[pure]] in that the input is what is lifted (and not ignored).
+   * {{{
+   * scala> Kleisli.ask[Option, Int].run(1)
+   * res0: Option[Int]: Some(1)
+   * }}}
+   */
   def ask[F[_], A](implicit F: Applicative[F]): Kleisli[F, A, A] =
     Kleisli(F.pure)
 
+  /**
+   * Modifies the input environment with `f`, without changing the input type of the Kleisli.
+   * {{{
+   * scala> import cats.data.Kleisli
+   * scala> val takeHead = Kleisli[Option, List[Int], Int](_.headOption)
+   * scala> Kleisli.local[Option, Int, List[Int]](1 :: _)(takeHead).run(List(2,3))
+   * res0: Option[Int] = Some(1)
+   * }}}
+   */
   def local[M[_], A, R](f: R => R)(fa: Kleisli[M, R, A]): Kleisli[M, R, A] =
     Kleisli(f.andThen(fa.run))
+}
+
+sealed private[data] trait KleisliFunctionsBinCompat {
+
+  /**
+   * Lifts a natural transformation of effects within a Kleisli
+   * to a transformation of Kleislis.
+   *
+   * Equivalent to running `mapK(f) on a Kleisli.
+   *
+   * {{{
+   * scala> import cats._, data._
+   * scala> val f: (List ~> Option) = λ[List ~> Option](_.headOption)
+   *
+   * scala> val k: Kleisli[List, String, Char] = Kleisli(_.toList)
+   * scala> k.run("foo")
+   * res0: List[Char] = List(f, o, o)
+   *
+   * scala> val k2: Kleisli[Option, String, Char] = Kleisli.liftFunctionK(f)(k)
+   * scala> k2.run("foo")
+   * res1: Option[Char] = Some(f)
+   * }}}
+   * */
+  def liftFunctionK[F[_], G[_], A](f: F ~> G): Kleisli[F, A, ?] ~> Kleisli[G, A, ?] =
+    λ[Kleisli[F, A, ?] ~> Kleisli[G, A, ?]](_.mapK(f))
 }
 
 sealed private[data] trait KleisliExplicitInstances {
@@ -168,6 +296,11 @@ sealed abstract private[data] class KleisliInstances extends KleisliInstances0 {
         }
       }
     }
+
+  implicit def catsDataFunctorFilterForKleisli[F[_], A](
+    implicit ev: FunctorFilter[F]
+  ): FunctorFilter[Kleisli[F, A, ?]] =
+    new KleisliFunctorFilter[F, A] { val FF = ev }
 }
 
 sealed abstract private[data] class KleisliInstances0 extends KleisliInstances0_5 {
@@ -291,32 +424,35 @@ sealed abstract private[data] class KleisliInstances4 extends KleisliInstances5 
   implicit def catsDataSemigroupKForKleisli[F[_], A](implicit F0: SemigroupK[F]): SemigroupK[Kleisli[F, A, ?]] =
     new KleisliSemigroupK[F, A] { def F: SemigroupK[F] = F0 }
 
-  implicit def catsDataApplicativeErrorForKleisli[F[_], E, A](
-    implicit F0: ApplicativeError[F, E]
-  ): ApplicativeError[Kleisli[F, A, ?], E] =
-    new KleisliApplicativeError[F, A, E] { def F: ApplicativeError[F, E] = F0 }
-
   implicit def catsDataFlatMapForKleisli[F[_], A](implicit FM: FlatMap[F]): FlatMap[Kleisli[F, A, ?]] =
     new KleisliFlatMap[F, A] { def F: FlatMap[F] = FM }
 
 }
 
 sealed abstract private[data] class KleisliInstances5 extends KleisliInstances6 {
+
+  implicit def catsDataApplicativeErrorForKleisli[F[_], E, A](
+    implicit F0: ApplicativeError[F, E]
+  ): ApplicativeError[Kleisli[F, A, ?], E] =
+    new KleisliApplicativeError[F, A, E] { def F: ApplicativeError[F, E] = F0 }
+}
+
+sealed abstract private[data] class KleisliInstances6 extends KleisliInstances7 {
   implicit def catsDataApplicativeForKleisli[F[_], A](implicit A: Applicative[F]): Applicative[Kleisli[F, A, ?]] =
     new KleisliApplicative[F, A] { def F: Applicative[F] = A }
 }
 
-sealed abstract private[data] class KleisliInstances6 extends KleisliInstances7 {
+sealed abstract private[data] class KleisliInstances7 extends KleisliInstances8 {
   implicit def catsDataApplyForKleisli[F[_], A](implicit A: Apply[F]): Apply[Kleisli[F, A, ?]] =
     new KleisliApply[F, A] { def F: Apply[F] = A }
 }
 
-sealed abstract private[data] class KleisliInstances7 extends KleisliInstances8 {
+sealed abstract private[data] class KleisliInstances8 extends KleisliInstances9 {
   implicit def catsDataDistributiveForKleisli[F[_], R](implicit F0: Distributive[F]): Distributive[Kleisli[F, R, ?]] =
     new KleisliDistributive[F, R] with KleisliFunctor[F, R] { implicit def F: Distributive[F] = F0 }
 }
 
-sealed abstract private[data] class KleisliInstances8 {
+sealed abstract private[data] class KleisliInstances9 {
   implicit def catsDataFunctorForKleisli[F[_], A](implicit F0: Functor[F]): Functor[Kleisli[F, A, ?]] =
     new KleisliFunctor[F, A] { def F: Functor[F] = F0 }
 }
@@ -502,4 +638,16 @@ private trait KleisliDistributive[F[_], R] extends Distributive[Kleisli[F, R, ?]
     Kleisli(r => F.distribute(a)(f(_).run(r)))
 
   def map[A, B](fa: Kleisli[F, R, A])(f: A => B): Kleisli[F, R, B] = fa.map(f)
+}
+
+private[this] trait KleisliFunctorFilter[F[_], R] extends FunctorFilter[Kleisli[F, R, ?]] {
+
+  def FF: FunctorFilter[F]
+
+  def functor: Functor[Kleisli[F, R, ?]] = Kleisli.catsDataFunctorForKleisli(FF.functor)
+
+  def mapFilter[A, B](fa: Kleisli[F, R, A])(f: A => Option[B]): Kleisli[F, R, B] =
+    Kleisli[F, R, B] { r =>
+      FF.mapFilter(fa.run(r))(f)
+    }
 }
