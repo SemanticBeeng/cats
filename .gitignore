@@ -1,6 +1,8 @@
 project/.sbtboot/
 project/.boot/
 project/.ivy/
+.hydra
+project/boot
 target
 .ensime
 .ensime_lucene

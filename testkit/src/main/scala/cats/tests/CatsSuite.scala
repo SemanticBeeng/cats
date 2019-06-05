@@ -1,27 +1,14 @@
 package cats
 package tests
 
-import catalysts.Platform
-
-import cats.instances.{
-  AllInstances,
-  AllInstancesBinCompat0,
-  AllInstancesBinCompat1,
-  AllInstancesBinCompat2,
-  AllInstancesBinCompat3
-}
-import cats.syntax.{
-  AllSyntax,
-  AllSyntaxBinCompat0,
-  AllSyntaxBinCompat1,
-  AllSyntaxBinCompat2,
-  AllSyntaxBinCompat3,
-  AllSyntaxBinCompat4,
-  EqOps
-}
+import cats.instances._
+import cats.platform.Platform
+import cats.syntax._
 import org.scalactic.anyvals.{PosInt, PosZDouble, PosZInt}
-import org.scalatest.{FunSuite, FunSuiteLike, Matchers}
-import org.scalatest.prop.{Configuration, GeneratorDrivenPropertyChecks}
+import org.scalatest.funsuite.AnyFunSuiteLike
+import org.scalatest.Matchers
+import org.scalatest.prop.Configuration
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.typelevel.discipline.scalatest.Discipline
 
 trait TestSettings extends Configuration with Matchers {
@@ -45,9 +32,9 @@ trait TestSettings extends Configuration with Matchers {
  * boilerplate in Cats tests.
  */
 trait CatsSuite
-    extends FunSuite
+    extends AnyFunSuiteLike
     with Matchers
-    with GeneratorDrivenPropertyChecks
+    with ScalaCheckDrivenPropertyChecks
     with Discipline
     with TestSettings
     with AllInstances
@@ -55,13 +42,16 @@ trait CatsSuite
     with AllInstancesBinCompat1
     with AllInstancesBinCompat2
     with AllInstancesBinCompat3
+    with AllInstancesBinCompat4
+    with AllInstancesBinCompat5
     with AllSyntax
     with AllSyntaxBinCompat0
     with AllSyntaxBinCompat1
     with AllSyntaxBinCompat2
     with AllSyntaxBinCompat3
     with AllSyntaxBinCompat4
-    with StrictCatsEquality { self: FunSuiteLike =>
+    with AllSyntaxBinCompat5
+    with StrictCatsEquality {
 
   implicit override val generatorDrivenConfig: PropertyCheckConfiguration =
     checkConfiguration

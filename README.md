@@ -1,12 +1,15 @@
 
 ### ![#f03c15](https://placehold.it/15/f03c15/000000?text=+) Community Announcements ![#f03c15](https://placehold.it/15/f03c15/000000?text=+)
-
-* **Feb 2 2019** [Call for proposals for the Philadelphia Typelevel Summit](https://www.papercall.io/typelevel-summit-phl-2019) is still open (until Feb 10). Great opportunity to share anything related to Cats ecosystem. 
-* **Feb 1 2019** Please help review our proposal for [2019 roadmap](https://github.com/typelevel/cats/issues/2719)
+* **Apr 26 2019** [We launched a sustainability program](https://typelevel.org/blog/2019/04/24/typelevel-sustainability-program-announcement.html). Please consider supporting us. 
+* **Apr 25 2019** [Cats 2.0.0-M1 is released](https://github.com/typelevel/cats/releases/tag/v2.0.0-M1) with binary compatibility with 1.x on `cats-kernel`, `cats-core` and `cats-free`
+* **Feb 15 2019** [Cats 2019 roadmap](https://github.com/typelevel/cats/blob/master/ROADMAP_2019.md) is published.
 * **Jan 31 2019** Cats 1.6.0 is released.
 * **Jan 31 2019** [Cats ecosystem community survey 2018 results](https://typelevel.org/blog/2019/01/30/cats-ecosystem-community-survey-results.html) is published
 
 ## Cats
+<a href="https://donorbox.org/typelevel-sustainability-program-2019?default_interval=m" target="_blank"><img src="https://typelevel.org/cats/img/donate-button.png" /></a>
+
+
 ![cats image](http://plastic-idolatry.com/erik/cats2.png)
 
 [![Build Status](https://api.travis-ci.org/typelevel/cats.svg)](https://travis-ci.org/typelevel/cats)
@@ -15,6 +18,7 @@
 [![codecov.io](http://codecov.io/github/typelevel/cats/coverage.svg?branch=master)](http://codecov.io/github/typelevel/cats?branch=master)
 [![Latest version](https://index.scala-lang.org/typelevel/cats/cats-core/latest.svg?color=orange&v=1)](https://index.scala-lang.org/typelevel/cats/cats-core)
 [![Scala.js](http://scala-js.org/assets/badges/scalajs-0.6.14.svg)](http://scala-js.org)
+
 
 
 ### Overview
@@ -27,11 +31,40 @@ standard library. Cats strives to provide functional programming abstractions th
 
 For more detail about Cats' motivations, go [here](http://typelevel.org/cats/motivations).
 
-You can read the API Documentation, [here](https://typelevel.org/cats/api/cats/index.html).
+
+### Support Cats
+
+We welcome contributions to Cats and would love for you to help build
+Cats. See our [contributor guide](https://typelevel.org/cats/contributing.html) for more
+information about how you can get involved as a developer. 
+
+We also have a [sustainability program](https://donorbox.org/typelevel-sustainability-program-2019?default_interval=m) for our user community to support Cats through donations. Donations directly support office hour for maintainers, better documentation and strategic initiatives. 
+
+### Gold Sponsors 
+
+Gold Sponsors are those who have pledged $5,000 to $10,000.
+
+<a href="http://47deg.com"><img src="http://typelevel.org/cats/img/sponsors/47_degree.png" style="margin-left: 10px; margin-right: 10px" /></a>
+<a href="https://www.iteratorshq.com"><img src="http://typelevel.org/cats/img/sponsors/iterators.png" style="margin-bottom:8px;margin-left: 10px; margin-right: 10px"/></a>
+<a href="https://triplequote.com/"><img src="http://typelevel.org/cats/img/sponsors/triplequote.png" style="margin-bottom:9px; margin-right: 10px" /></a>
+<a href="http://underscore.io"><img src="http://typelevel.org/cats/img/sponsors/underscore.png" style="margin-bottom:5px;margin-left: 10px; margin-right: 10px"/></a>
+
+<a class="dbox-donation-button" href="https://donorbox.org/typelevel-sustainability-program-2019?default_interval=m" style="background:#eee; color: #5B5988; text-decoration: none;font-family: Verdana,sans-serif;display: inline-block;font-size: 13px;padding: 10px 20px 10px 20px; -webkit-border-radius: 3px; -moz-border-radius: 2px; border-radius: 20px; border: 1px solid#5B5988;"  >BECOME A SPONSOR</a>
+
+### Silver Sponsors
+
+Silver Sponsors are those who have pledged $2,000 to $5,000.
+
+
+<a href="https://ebiznext.com/"><img src="http://typelevel.org/cats/img/sponsors/ebiznext.png"  style="margin-bottom:15px; margin-right: 10px" /></a>
+<a href="https://www.inner-product.com/"><img src="http://typelevel.org/cats/img/sponsors/inner-product.png" style="margin-bottom:10px; margin-right: 10px"/></a>
+
+
+<a class="dbox-donation-button" href="https://donorbox.org/typelevel-sustainability-program-2019?default_interval=m" style="background:#eee; color: #5B5988; text-decoration: none;font-family: Verdana,sans-serif;display: inline-block;font-size: 13px;padding: 10px 20px 10px 20px; -webkit-border-radius: 3px; -moz-border-radius: 2px; border-radius: 20px; border: 1px solid#5B5988;"  >BECOME A SPONSOR</a>
 
 ### Getting Started
 
-Cats is currently available for Scala 2.10 (up to 1.2.x), 2.11,  2.12, 2.13.0-M4,  and [Scala.js](http://www.scala-js.org/).
+Cats is currently available for Scala 2.10 (up to 1.2.x), 2.11,  2.12, 2.13.0-RC1, and [Scala.js](http://www.scala-js.org/).
 
 
 Cats relies on improved type inference via the fix for [SI-2712](https://github.com/scala/bug/issues/2712), which is not enabled by default. For **Scala 2.11.9 or later** you should add the following to your `build.sbt`:
@@ -49,7 +82,7 @@ addSbtPlugin("org.lyranthe.sbt" % "partial-unification" % "1.1.2")
 And then create the Cats dependency, by adding the following to your `build.sbt`:
 
 ```scala
-libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0"
+libraryDependencies += "org.typelevel" %% "cats-core" % "2.0.0-M1"
 ```
 
 This will pull in the cats-core module. If you require some other
@@ -74,11 +107,20 @@ functionality, you can pick-and-choose from amongst these modules
  * [`cats-tagless`](https://github.com/typelevel/cats-tagless): Utilities for tagless final encoded algebras
  * [`cats-collections`](https://github.com/typelevel/cats-collections): Data structures which facilitate pure functional programming
 
-Release notes for Cats are available in [CHANGES.md](https://github.com/typelevel/cats/blob/master/CHANGES.md).
+Past release notes for Cats are available in [CHANGES.md](https://github.com/typelevel/cats/blob/master/CHANGES.md).
+See [Cats 2019 roadmap](https://github.com/typelevel/cats/blob/master/ROADMAP_2019.md) for our plan for 2019.
 
-*Cats is still under active development. While we don't anticipate any
- major redesigns, changes that are neither source nor binary
- compatible are to be expected in upcoming RC1 and 1.0 releases.*
+### Documentation
+
+Links:
+
+1. Website: [typelevel.org/cats/](https://typelevel.org/cats/)
+2. ScalaDoc: [typelevel.org/cats/api/](https://typelevel.org/cats/api/)
+3. Type classes: [typelevel.org/cats/typeclasses](https://typelevel.org/cats/typeclasses.html)
+4. Data types: [typelevel.org/cats/datatypes.html](https://typelevel.org/cats/datatypes.html)
+5. Glossary: [typelevel.org/cats/nomenclature.html](https://typelevel.org/cats/nomenclature.html)
+6. Resources for Learners: [typelevel.org/cats/resources_for_learners.html](https://typelevel.org/cats/resources_for_learners.html)
+7. FAQ: [typelevel.org/cats/faq.html](https://typelevel.org/cats/faq.html)
 
 
 ### <a name="ecosystem" href="#ecosystem"></a>The Cats ecosystem
@@ -123,6 +165,7 @@ By sharing the same set of type classes, instances and data types provided by Ca
  * [hammock](https://github.com/pepegar/hammock): Purely functional HTTP client
  * [henkan](https://github.com/kailuowang/henkan): Type safe conversion between case class instances with similar fields
  * [http4s](https://github.com/http4s/http4s): A minimal, idiomatic Scala interface for HTTP
+ * [itto-csv](https://github.com/gekomad/itto-csv): pure functional library for working with CSV
  * [linebacker](https://github.com/ChristopherDavenport/linebacker): functional thread pool management
  * [log4cats](https://github.com/ChristopherDavenport/log4cats): functional logging
  * [monadic-html](https://github.com/OlivierBlanvillain/monadic-html): Tiny DOM binding library for Scala.js
@@ -153,12 +196,6 @@ Below are quick html and markdown snippets to use the badge in your own project.
 ```markdown
 ![Cats Friendly Badge](https://typelevel.org/cats/img/cats-badge-tiny.png) 
 ```
-
-### How can I contribute to Cats?
-
-We welcome contributions to Cats and would love for you to help build
-Cats. See our [contributor guide](https://typelevel.org/cats/contributing.html) for more
-information about how you can get involved.
 
 ### Community
 
@@ -220,7 +257,7 @@ versioning in the future. But that decision is yet to be made.
 
 ### Adopters
 
-Here's a (non-exhaustive) list of companies that use Cats in production. Don't see yours? [You can add it in a PR!](https://github.com/typelevel/cats/edit/master/README.md)
+Here's a (non-exhaustive) list of companies that use Cats in production. Don't see yours? [You can add it in a PR!](https://github.com/typelevel/cats/edit/master/README.md). And if you can, consider [supporting us](https://donorbox.org/typelevel-sustainability-program-2019?default_interval=m). 
 
 - [Abacus Protocol](https://abacusprotocol.com)
 - [Anduin Transactions](https://anduintransact.com)
@@ -231,15 +268,18 @@ Here's a (non-exhaustive) list of companies that use Cats in production. Don't s
 - [Banno Group inside of Jack Henry & Associates](https://banno.com/)
 - [Basefarm](https://basefarm.com/)
 - [buildo](https://buildo.io)
+- [Chartboost](https://www.chartboost.com/)
 - [Codacy](https://www.codacy.com/)
 - [Codecentric](https://codecentric.de)
 - [Colisweb](https://www.colisweb.com/)
+- [Coya](https://coya.com/)
 - [DriveTribe](https://drivetribe.com/)
 - [Dwolla](https://dwolla.com/)
 - [Earnest](https://www.earnest.com)
 - [eBay Inc.](https://www.ebay.com)
 - [Eloquentix](https://eloquentix.com)
 - [eSailors](https://www.esailors.de)
+- [Evolution Gaming](https://www.evolutiongaming.com/)
 - [Evotor Marketplace](https://market.evotor.ru/)
 - [e.near](http://enear.co)
 - [E.ON](https://eon.com)
@@ -251,9 +291,11 @@ Here's a (non-exhaustive) list of companies that use Cats in production. Don't s
 - [ITV](https://www.itv.com/)
 - [Lookout](https://www.lookout.com)
 - [Metacommerce](https://www.metacommerce.ru)
+- [Netflix](https://jobs.netflix.com)
 - [Nezasa](https://www.nezasa.com)
 - [NCR Edinburgh](https://ncredinburgh.com/)
 - [Ocado Technology](https://ocadotechnology.com)
+- [Packlink](https://packlink.com/)
 - [Raiffeisenbank Russia](https://www.raiffeisen.ru/)
 - [Rakuten](https://www.rakuten.com)
 - [REA Group](https://www.realestate.com.au/)
@@ -261,6 +303,7 @@ Here's a (non-exhaustive) list of companies that use Cats in production. Don't s
 - [Rudder](https://rudder.io)
 - [Scalac](https://scalac.io)
 - [Scala Center](https://scala.epfl.ch)
+- [Sigma](https://try.sig.ma)
 - [Snowplow Analytics](https://snowplowanalytics.com/)
 - [Spiceworks](https://www.spiceworks.com/)
 - [Spotahome](https://spotahome.com)

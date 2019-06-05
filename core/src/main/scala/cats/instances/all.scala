@@ -46,3 +46,7 @@ trait AllInstancesBinCompat1
 trait AllInstancesBinCompat2 extends DurationInstances with FiniteDurationInstances
 
 trait AllInstancesBinCompat3 extends AllCoreDurationInstances
+
+trait AllInstancesBinCompat4 extends SortedMapInstancesBinCompat1 with MapInstancesBinCompat1
+
+trait AllInstancesBinCompat5 extends SortedSetInstancesBinCompat0

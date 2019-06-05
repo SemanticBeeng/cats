@@ -1,7 +1,14 @@
 package cats
 
 package object instances {
-  object all extends AllInstances with AllInstancesBinCompat0 with AllInstancesBinCompat1 with AllInstancesBinCompat2
+  object all
+      extends AllInstances
+      with AllInstancesBinCompat0
+      with AllInstancesBinCompat1
+      with AllInstancesBinCompat2
+      with AllInstancesBinCompat3
+      with AllInstancesBinCompat4
+      with AllInstancesBinCompat5
   object bigInt extends BigIntInstances
   object bigDecimal extends BigDecimalInstances
   object bitSet extends BitSetInstances
@@ -22,7 +29,7 @@ package object instances {
   object list extends ListInstances with ListInstancesBinCompat0
   object long extends LongInstances
   object option extends OptionInstances with OptionInstancesBinCompat0
-  object map extends MapInstances with MapInstancesBinCompat0
+  object map extends MapInstances with MapInstancesBinCompat0 with MapInstancesBinCompat1
   object order extends OrderInstances
   object ordering extends OrderingInstances
   object parallel extends ParallelInstances
@@ -31,8 +38,8 @@ package object instances {
   object queue extends QueueInstances
   object set extends SetInstances
   object short extends ShortInstances
-  object sortedMap extends SortedMapInstances
-  object sortedSet extends SortedSetInstances
+  object sortedMap extends SortedMapInstances with SortedMapInstancesBinCompat0 with SortedMapInstancesBinCompat1
+  object sortedSet extends SortedSetInstances with SortedSetInstancesBinCompat0
   object stream extends StreamInstances with StreamInstancesBinCompat0
   object string extends StringInstances
   object try_ extends TryInstances
